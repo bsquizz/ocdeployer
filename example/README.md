@@ -36,9 +36,9 @@ is set to `True`, however, we won't wait for the deployments to reach `active` s
         components:
         - "set2"
     ```
-2) In the `templates` directory, we create two folders to represent each service set: `templates/setA` and `templates/setB`. We'll put the OpenShift YAML templates files into their appropriate directory: `nginx.yml` and `postgres.yml` go in `setA`, `mysql.yml` and `ruby-app.yml` go in `setB`. In addition, each service set folder gets its own `_cfg.yml` to define how that service set is deployed.
+2) In the `templates` directory, we create two folders to represent each service set: `templates/set1` and `templates/set2`. We'll put the OpenShift YAML templates files into their appropriate directory: `nginx.yml` and `postgres.yml` go in `set1`, `mysql.yml` and `ruby-app.yml` go in `set2`. In addition, each service set folder gets its own `_cfg.yml` to define how that service set is deployed.
 
-    `templates/setA/_cfg.yml` looks like this:
+    `templates/set1/_cfg.yml` looks like this:
 
     ```yaml
     images:
@@ -59,7 +59,7 @@ is set to `True`, however, we won't wait for the deployments to reach `active` s
         - "postgres"
     ```
 
-    `templates/setB/_cfg.yml` looks like this:
+    `templates/set2/_cfg.yml` looks like this:
 
     ```yaml
     requires:
@@ -90,7 +90,7 @@ is set to `True`, however, we won't wait for the deployments to reach `active` s
         - "ruby-app"
     ```
 
-3) `setB` contains custom deploy logic, in `custom/deploy_setB.py`. There is a `post_deploy` method defined in there to do some "extra work" after the deploy has occurred. As an example, in this script we patch a `ConfigMap` with updated info after the `nginx1` service has been deployed and we are able to see what the frontend's auto-generated route is.
+3) `set2` contains custom deploy logic, in `custom/deploy_set2.py`. There is a `post_deploy` method defined in there to do some "extra work" after the deploy has occurred. As an example, in this script we patch a `ConfigMap` with updated info after the `nginx1` service has been deployed and we are able to see what the frontend's auto-generated route is.
 
     ```python
     import json
@@ -121,9 +121,9 @@ See [mysql-secrets.yml](secrets/mysql-secrets.yml) and [postgres-secrets.yml](se
 
 Now, we can do the following:
 
-Deploy only setA to project 'myproject' using QA env settings
+Deploy only set1 to project 'myproject' using QA env settings
 
-`$ ocdeployer -c setA -e qa-env.yml myproject`
+`$ ocdeployer -c set1 -e qa-env.yml myproject`
 
 Deploy all service sets to project 'myproject' using production env settings
 
