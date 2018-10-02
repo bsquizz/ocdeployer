@@ -221,6 +221,8 @@ advisor:
 advisor/advisor-db:
   VAR2: "this overrides global VAR2, and advisor VAR2, for only the advisor-db component"
   VAR4: "VAR4 only applies to advisor-db"
+  # Using keyword {prompt} will cause ocdeployer to prompt for this variable's value at runtime.
+  VAR5: "{prompt}"
 ```
 
 This allows you to define your variables at a global level, at a "per service-set" level, or at a "per-component within a service-set" level. You can override variables with the same name at the "more granular levels" as well. If an OpenShift template does not have a variable defined in its "parameters" section, then that variable will be skipped at processing time. This allows you to define variables at a global level,

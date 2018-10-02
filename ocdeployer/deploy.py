@@ -313,7 +313,7 @@ class DeployRunner(object):
         content = load_cfg_file(os.path.join(self.template_dir, "_cfg.yml"))
         _handle_secrets_and_imgs(content)
         deploy_order = content.get("deploy_order", {})
-
+    
         # Verify all service sets exist
         all_service_sets = []
         for stage, stage_data in deploy_order.items():

@@ -32,6 +32,22 @@ def list_routes(project):
         print("{}\t\t\t{}".format(svc_name, svc_route))
 
 
+def get_variables_data(variables_file):
+    variables_data = load_cfg_file(variables_file)
+
+    # Check if there's any variables we need to prompt for
+    for section, data in variables_data.items():
+        for var_name, var_value in data.items():
+            if var_value == "{prompt}":
+                variables_data[section][var_name] = prompter.prompt(
+                    "Enter value for parameter '{}' in section '{}':".format(
+                        var_name, section
+                    )
+                )
+
+    return variables_data
+
+
 def main(args):
     if not args.dst_project and not args.list_components:
         print(">>> Error: no destination project given")
@@ -80,7 +96,7 @@ def main(args):
         sys.exit(0)
 
     if args.env_file:
-        variables_data = load_cfg_file(args.env_file)
+        variables_data = get_variables_data(args.env_file)
     else:
         variables_data = {}
 
