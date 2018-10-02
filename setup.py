@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -13,7 +13,7 @@ setup(
     author="Brandon Squizzato",
     author_email="bsquizza@redhat.com",
     url="https://www.github.com/bsquizz/ocdeployer",
-    packages=setuptools.find_packages(),
+    packages=find_packages(),
     keywords=["openshift", "kubernetes"],
     setup_requires=["setuptools_scm"],
     include_package_data=True,
