@@ -1,14 +1,19 @@
 from setuptools import setup
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
     name="ocdeployer",
     use_scm_version=True,
     description="A tool which wraps the OpenShift command line tools to enable repeatable automated deployment of OpenShift templates",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     license="MIT",
     author="Brandon Squizzato",
     author_email="bsquizza@redhat.com",
     url="https://www.github.com/bsquizz/ocdeployer",
-    packages=["ocdeployer"],
+    packages=setuptools.find_packages(),
     keywords=["openshift", "kubernetes"],
     setup_requires=["setuptools_scm"],
     include_package_data=True,
