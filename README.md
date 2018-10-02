@@ -33,7 +33,7 @@ usage: ocdeployer [-h] [--no-confirm] [--secrets-local-dir SECRETS_LOCAL_DIR]
                   [--components COMPONENTS] [--env-file ENV_FILE]
                   [--template-dir TEMPLATE_DIR] [--list-components]
                   [--ignore-requires] [--scale-resources SCALE_RESOURCES]
-                  [--custom-dir CUSTOM_DIR]
+                  [--custom-dir CUSTOM_DIR] [--wipe] [--list-routes]
                   [dst_project]
 
 Deploy Tool
@@ -69,6 +69,9 @@ optional arguments:
                         requests/limits by
   --custom-dir CUSTOM_DIR, -u CUSTOM_DIR
                         Custom deploy scripts directory (default ./custom)
+  --wipe, -w            Wipe the project (delete EVERYTHING in it)
+  --list-routes, -r     List the routes currently configured in the project
+                        and exit
 ```
 
 ## Details
