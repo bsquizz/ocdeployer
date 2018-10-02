@@ -154,11 +154,11 @@ The best way to explain how template configuration works is to describe the proc
 ### Custom Deploy Logic
 If you set `custom_deploy_logic` to True, you should then create a custom deploy script in the `custom` dir with a name that matches your service set -- e.g. `deploy_myservice.py`. Inside this script you can define 3 methods:
 
-    ```python
-    def pre_deploy(project_name, template_dir, variables_for_component):
-    def deploy(project_name, template_dir, components, variables_for_component, wait, timeout, resources_scale_factor):
-    def post_deploy(processed_templates, project_name, template_dir, variables_for_component):
-    ```
+```python
+def pre_deploy(project_name, template_dir, variables_for_component):
+def deploy(project_name, template_dir, components, variables_for_component, wait, timeout, resources_scale_factor):
+def post_deploy(processed_templates, project_name, template_dir, variables_for_component):
+```
 
 By default, no pre_deploy/post_deploy is run, and the deploy logic is taken care of by the `ocdeployer.deploy.deploy_components` method. So, unless you are doing something complicated and require additional "python scripting" to handle your (pre/post)deploy logic, you don't need to worry about this step.
 
@@ -198,8 +198,8 @@ $ oc export secret mysecret -o yaml > /tmp/secrets/mysecret.yaml
 
 To use the secrets files in your next project deploy:
 ```
-(e2e-deploy) $ oc login https://my.openshift --token=*************
-(e2e-deploy) $ ocdeployer -a --secrets-local-dir /tmp/secrets/ myproject
+(venv) $ oc login https://my.openshift --token=*************
+(venv) $ ocdeployer -a --secrets-local-dir /tmp/secrets/ myproject
 ```
 
 ## Environment file
