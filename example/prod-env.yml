@@ -1,0 +1,22 @@
+global:
+  # Global parameters apply to all templates
+  GITHUB_WEBHOOK_SECRET: "myGithubWebhookSecret"
+  GENERIC_WEBHOOK_SECRET: "myGenericSecret"
+
+set1/nginx:
+  # These parameters will apply only to 'nginx' component in set1
+  NAME: "nginx1"
+  APPLICATION_DOMAIN: "nginx-prod.mycompany.com"
+
+set1/postgres:
+  # These parameters will apply only to 'postgres' component in set1
+  DATABASE_SERVICE_NAME: "postgres-prod"
+  VOLUME_CAPACITY: "10Gi"
+
+set2:
+  # These parameters will apply to all components in set2
+  MYSQL_DATABASE: "the_mysql_db"
+
+set2/ruby-app:
+  # These parameters will apply only to 'ruby-app' in set2
+  FRONTEND_FQDN: "ruby-hello-world-prod.mycompany.com"

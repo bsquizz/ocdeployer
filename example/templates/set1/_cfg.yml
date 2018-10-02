@@ -1,0 +1,12 @@
+images:
+  "nginx-112-centos7": "centos/nginx-112-centos7"
+  "postgresql-10-rhel7": "registry.access.redhat.com/rhscl/postgresql-10-rhel7"
+
+secrets:
+  - "postgres-dbsecrets"
+
+deploy_order:
+  stage0:
+    components:
+      - "nginx"
+      - "postgres"

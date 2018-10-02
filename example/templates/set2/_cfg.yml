@@ -1,0 +1,19 @@
+requires:
+  - "set1"
+
+images:
+  ruby-22-centos7: "centos/ruby-22-centos7"
+  mysql-57-centos7: "centos/mysql-57-centos7"
+
+custom_deploy_logic: True
+
+secrets:
+  - "mysql-dbsecret"
+
+deploy_order:
+  stage0:
+    components:
+      - "mysql"
+  stage1:
+    components:
+      - "ruby-app"

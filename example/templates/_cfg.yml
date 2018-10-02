@@ -1,0 +1,9 @@
+deploy_order:
+  stage0:
+    return_immediately: False
+    components:
+    - "set1"
+  stage1:
+    return_immediately: False
+    components:
+    - "set2"

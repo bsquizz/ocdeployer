@@ -1,0 +1,197 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: ruby-app
+
+objects:
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: frontend
+  spec:
+    ports:
+    - name: web
+      protocol: TCP
+      port: 5432
+      targetPort: 8080
+      nodePort: 0
+    selector:
+      name: frontend
+    type: ClusterIP
+    sessionAffinity: None
+  status:
+    loadBalancer: {}
+
+- kind: Route
+  apiVersion: v1
+  metadata:
+    name: route-edge
+    annotations:
+      template.openshift.io/expose-uri: http://{.spec.host}{.spec.path}
+  spec:
+    host: ${FRONTEND_FQDN}
+    to:
+      kind: Service
+      name: frontend
+    tls:
+      termination: edge
+  status: {}
+
+- kind: ImageStream
+  apiVersion: v1
+  metadata:
+    name: origin-ruby-sample
+  spec: {}
+  status:
+    dockerImageRepository: ''
+
+- kind: BuildConfig
+  apiVersion: v1
+  metadata:
+    name: ruby-sample-build
+    labels:
+      name: ruby-sample-build
+    annotations:
+      template.alpha.openshift.io/wait-for-ready: 'true'
+  spec:
+    triggers:
+    - type: GitHub
+      github:
+        secret: ${GITHUB_WEBHOOK_SECRET}
+    - type: Generic
+      generic:
+        secret: ${GENERIC_WEBHOOK_SECRET}
+        allowEnv: true
+    - type: ImageChange
+      imageChange: {}
+    - type: ConfigChange
+    source:
+      type: Git
+      git:
+        uri: https://github.com/openshift/ruby-hello-world.git
+    strategy:
+      type: Source
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          namespace: "${NAMESPACE}"
+          name: "ruby-22-centos7:latest"
+    output:
+      to:
+        kind: ImageStreamTag
+        name: origin-ruby-sample:latest
+    postCommit:
+      args:
+      - bundle
+      - exec
+      - rake
+      - test
+    resources: {}
+  status:
+    lastVersion: 0
+
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    name: frontend
+    annotations:
+      template.alpha.openshift.io/wait-for-ready: 'true'
+  spec:
+    strategy:
+      type: Rolling
+      rollingParams:
+        updatePeriodSeconds: 1
+        intervalSeconds: 1
+        timeoutSeconds: 120
+        pre:
+          failurePolicy: Abort
+          execNewPod:
+            command:
+            - "/bin/true"
+            env:
+            - name: CUSTOM_VAR1
+              value: custom_value1
+            containerName: ruby-helloworld
+        post:
+          failurePolicy: Ignore
+          execNewPod:
+            command:
+            - "/bin/true"
+            env:
+            - name: CUSTOM_VAR2
+              value: custom_value2
+            containerName: ruby-helloworld
+      resources: {}
+    triggers:
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+        - ruby-helloworld
+        from:
+          kind: ImageStreamTag
+          name: origin-ruby-sample:latest
+    - type: ConfigChange
+    replicas: 2
+    selector:
+      name: frontend
+    template:
+      metadata:
+        labels:
+          name: frontend
+      spec:
+        containers:
+        - name: ruby-helloworld
+          image: origin-ruby-sample
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          env:
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                name: mysql-dbsecret
+                key: mysql-user
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-dbsecret
+                key: mysql-password
+          - name: MYSQL_DATABASE
+            value: "${MYSQL_DATABASE}"
+          resources: {}
+          terminationMessagePath: "/dev/termination-log"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities: {}
+            privileged: false
+        restartPolicy: Always
+        dnsPolicy: ClusterFirst
+  status: {}
+
+parameters:
+- name: MYSQL_DATABASE
+  description: database name
+  value: defaultdb
+  required: true
+  required: true
+- name: GITHUB_WEBHOOK_SECRET
+  displayName: GitHub Webhook Secret
+  description: Github trigger secret.  A difficult to guess string encoded as part
+    of the webhook URL.  Not encrypted.
+  generate: expression
+  from: "[a-zA-Z0-9]{40}"
+- name: GENERIC_WEBHOOK_SECRET
+  displayName: Generic Webhook Secret
+  description: A secret string used to configure the Generic webhook.
+  generate: expression
+  from: "[a-zA-Z0-9]{40}"
+- description: The OpenShift Namespace where the ImageStream resides.
+  displayName: Namespace
+  name: NAMESPACE
+  value: openshift
+- description: Frontend route FQDN
+  displayName: Frontend FQDN
+  name: FRONTEND_FQDN
+  value: www.example.com

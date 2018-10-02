@@ -1,0 +1,187 @@
+#!/usr/bin/env python
+from __future__ import print_function
+
+import argparse
+import importlib
+import os
+import sys
+
+import prompter
+
+from ocdeployer.utils import oc, load_cfg_file, get_routes, get_cfg_files_in_dir
+from ocdeployer.secrets import SecretImporter
+from ocdeployer.deploy import DeployRunner
+
+
+def wipe(project):
+    if not prompter.yesno(
+        "I'm about to delete everything in project '{}'.  Continue?".format(project),
+        default="no"
+    ):
+        oc("project", project, _exit_on_err=False)
+        oc("delete", "all", "--all", _exit_on_err=False)
+        oc("delete", "configmap", "--all", _exit_on_err=False)
+        oc("delete", "secret", "--all", _exit_on_err=False)
+        oc("delete", "pvc", "--all", _exit_on_err=False)
+
+
+def list_routes(project):
+    oc("project", project)
+    print(">>> The following routes now exist:")
+    for svc_name, svc_route in get_routes().items():
+        print("{}\t\t\t{}".format(svc_name, svc_route))
+
+
+def main(args):
+    if not args.dst_project and not args.list_components:
+        print(">>> Error: no destination project given")
+        sys.exit(1)
+
+    if args.wipe:
+        return wipe(args.dst_project)
+
+    if args.list_routes:
+        return list_routes(args.dst_project)
+
+    SecretImporter.local_dir = args.secrets_local_dir
+    SecretImporter.source_project = args.secrets_src_project
+
+    template_dir = os.path.abspath(args.template_dir)
+
+    try:
+        walk = next(os.walk(template_dir))
+    except StopIteration:
+        print(">>> Error: template dir '{}' invalid".format(template_dir))
+        sys.exit(1)
+
+    all_components = walk[1]
+    all_components.extend(
+        [os.path.basename(f) for f in get_cfg_files_in_dir(template_dir)]
+    )
+
+    if args.list_components:
+        print(">>> Available components: {}".format(all_components))
+        sys.exit(0)
+
+    if not args.all and not args.components:
+        print(">>> Error: no components selected for deploy")
+        sys.exit(1)
+
+    if args.all:
+        components_selected = all_components
+    else:
+        components_selected = args.components.split(",")
+
+    if not args.no_confirm and not prompter.yesno(
+        "Deploying components '{}' to project '{}'.  Continue?".format(
+            args.components, args.dst_project
+        )
+    ):
+        sys.exit(0)
+
+    if args.env_file:
+        variables_data = load_cfg_file(args.env_file)
+    else:
+        variables_data = {}
+
+    oc("new-project", args.dst_project, _exit_on_err=False)
+    oc("project", args.dst_project)
+
+    DeployRunner(
+        template_dir,
+        args.dst_project,
+        variables_data,
+        ignore_requires=args.ignore_requires,
+        service_sets_selected=components_selected,
+        resources_scale_factor=args.scale_resources,
+        custom_dir=args.custom_dir,
+    ).run()
+
+    list_routes(args.dst_project)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Deploy Tool")
+    parser.add_argument(
+        "--no-confirm", "-f", action="store_true", help="Do not prompt for confirmation"
+    )
+    parser.add_argument(
+        "--secrets-local-dir",
+        "-d",
+        type=str,
+        default=os.path.join(os.getcwd(), "secrets"),
+        help="Import secrets from local files in a directory (default ./secrets)",
+    )
+    parser.add_argument(
+        "--secrets-src-project",
+        "-p",
+        type=str,
+        default="insights-ci",
+        help="Openshift project to import secrets from (default: insights-ci)",
+    )
+    parser.add_argument(
+        "--all", "-a", action="store_true", help="Deploy all components"
+    )
+    parser.add_argument(
+        "--components",
+        "-c",
+        type=str,
+        help="Comma,separated,list of specific component names to deploy",
+    )
+    parser.add_argument(
+        "dst_project", type=str, nargs="?", help="Destination project to deploy to"
+    )
+    parser.add_argument(
+        "--env-file",
+        "-e",
+        default="",
+        type=str,
+        help="Path to parameters config file (default: None)"
+    )
+    parser.add_argument(
+        "--template-dir",
+        "-t",
+        type=str,
+        default=os.path.join(os.getcwd(), "templates"),
+        help="Template directory (default ./templates)",
+    )
+    parser.add_argument(
+        "--list-components",
+        "-l",
+        action="store_true",
+        help="List base components available to select in the template dir and exit",
+    )
+    parser.add_argument(
+        "--ignore-requires",
+        "-i",
+        action="store_true",
+        help="Ignore the 'requires' statement in config files and deploy anyway",
+    )
+    parser.add_argument(
+        "--scale-resources",
+        "-s",
+        type=float,
+        default=1.0,
+        help="Factor to scale configured cpu/memory resource requests/limits by"
+    )
+    parser.add_argument(
+        "--custom-dir",
+        "-u",
+        type=str,
+        default=os.path.join(os.getcwd(), "custom"),
+        help="Custom deploy scripts directory (default ./custom)",
+    )
+    parser.add_argument(
+        "--wipe",
+        "-w",
+        action="store_true",
+        help="Wipe the project (delete EVERYTHING in it)"
+    )
+    parser.add_argument(
+        "--list-routes",
+        "-r",
+        action="store_true",
+        help="List the routes currently configured in the project and exit"
+    )
+    args = parser.parse_args()
+    main(args)
