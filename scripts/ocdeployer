@@ -2,7 +2,7 @@
 from __future__ import print_function
 
 import argparse
-import importlib
+import logging
 import os
 import sys
 
@@ -13,10 +13,13 @@ from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
 
 
+log = logging.getLogger("ocdeployer")
+
+
 def wipe(project):
     if not prompter.yesno(
         "I'm about to delete everything in project '{}'.  Continue?".format(project),
-        default="no"
+        default="no",
     ):
         oc("project", project, _exit_on_err=False)
         oc("delete", "all", "--all", _exit_on_err=False)
@@ -27,9 +30,15 @@ def wipe(project):
 
 def list_routes(project):
     oc("project", project)
-    print(">>> The following routes now exist:")
-    for svc_name, svc_route in get_routes().items():
-        print("{}\t\t\t{}".format(svc_name, svc_route))
+    log.info("The following routes now exist:")
+    max_len = 10
+    route_data = get_routes()
+    for svc_name in route_data:
+        if len(svc_name) > max_len:
+            max_len = len(svc_name)
+ 
+    for svc_name, svc_route in route_data.items():
+        log.info("%-*s %s", max_len, svc_name, svc_route)
 
 
 def get_variables_data(variables_file):
@@ -50,7 +59,7 @@ def get_variables_data(variables_file):
 
 def main(args):
     if not args.dst_project and not args.list_components:
-        print(">>> Error: no destination project given")
+        log.error("Error: no destination project given")
         sys.exit(1)
 
     if args.wipe:
@@ -67,7 +76,7 @@ def main(args):
     try:
         walk = next(os.walk(template_dir))
     except StopIteration:
-        print(">>> Error: template dir '{}' invalid".format(template_dir))
+        log.error("Error: template dir '%s' invalid", template_dir)
         sys.exit(1)
 
     all_components = walk[1]
@@ -76,11 +85,11 @@ def main(args):
     )
 
     if args.list_components:
-        print(">>> Available components: {}".format(all_components))
+        log.info("Available components: %s", all_components)
         sys.exit(0)
 
     if not args.all and not args.components:
-        print(">>> Error: no components selected for deploy")
+        log.error("Error: no components selected for deploy")
         sys.exit(1)
 
     if args.all:
@@ -117,6 +126,9 @@ def main(args):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger("sh").setLevel(logging.CRITICAL)
+
     parser = argparse.ArgumentParser(description="Deploy Tool")
     parser.add_argument(
         "--no-confirm", "-f", action="store_true", help="Do not prompt for confirmation"
@@ -152,7 +164,7 @@ if __name__ == "__main__":
         "-e",
         default="",
         type=str,
-        help="Path to parameters config file (default: None)"
+        help="Path to parameters config file (default: None)",
     )
     parser.add_argument(
         "--template-dir",
@@ -178,7 +190,7 @@ if __name__ == "__main__":
         "-s",
         type=float,
         default=1.0,
-        help="Factor to scale configured cpu/memory resource requests/limits by"
+        help="Factor to scale configured cpu/memory resource requests/limits by",
     )
     parser.add_argument(
         "--custom-dir",
@@ -191,13 +203,13 @@ if __name__ == "__main__":
         "--wipe",
         "-w",
         action="store_true",
-        help="Wipe the project (delete EVERYTHING in it)"
+        help="Wipe the project (delete EVERYTHING in it)",
     )
     parser.add_argument(
         "--list-routes",
         "-r",
         action="store_true",
-        help="List the routes currently configured in the project and exit"
+        help="List the routes currently configured in the project and exit",
     )
     args = parser.parse_args()
     main(args)

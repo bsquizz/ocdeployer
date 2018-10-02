@@ -3,12 +3,16 @@ Handles deploy logic for components
 """
 import copy
 import importlib
+import logging
 import os
 import sys
 
 from .utils import load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
+
+
+log = logging.getLogger(__name__)
 
 
 def deploy_components(
@@ -64,7 +68,7 @@ def deploy_components(
         template.process(
             variables_per_component.get(comp_name, {}), resources_scale_factor
         )
-        print(">>> Deploying component '{}'".format(comp_name))
+        log.info("Deploying component '{}'".format(comp_name))
         oc("apply", "-f", "-", "-n", project_name, _in=template.dump_processed_json())
 
         deployments = template.get_processed_names_for_restype("dc")
@@ -102,7 +106,7 @@ def _get_custom_methods(service_set, custom_dir):
     try:
         sys.path.insert(0, custom_dir)
         module = importlib.import_module("deploy_{}".format(service_set))
-        print(">>> Custom script found for component '{}'".format(service_set))
+        log.info("Custom script found for component '{}'".format(service_set))
     except ImportError:
         return DEFAULT_DEPLOY_METHODS
 
@@ -110,22 +114,20 @@ def _get_custom_methods(service_set, custom_dir):
 
     try:
         pre_deploy_method = getattr(module, "pre_deploy")
-        print(">>> Custom pre_deploy() found for component '{}'".format(service_set))
+        log.info("Custom pre_deploy() found for component '{}'".format(service_set))
     except AttributeError:
         pre_deploy_method = None
 
     try:
         deploy_method = getattr(module, "deploy")
-        print(">>> Custom deploy() method found for component '{}'".format(service_set))
+        log.info("Custom deploy() method found for component '{}'".format(service_set))
     except AttributeError:
         deploy_method = deploy_components
 
     try:
         post_deploy_method = getattr(module, "post_deploy")
-        print(
-            ">>> Custom post_deploy() method found for component '{}'".format(
-                service_set
-            )
+        log.info(
+            "Custom post_deploy() method found for component '{}'".format(service_set)
         )
     except AttributeError:
         post_deploy_method = None
@@ -218,7 +220,7 @@ class DeployRunner(object):
                 )
 
     def _deploy_service_set(self, service_set):
-        print(">>> Handling config for service set '{}'".format(service_set))
+        log.info("Handling config for service set '{}'".format(service_set))
         processed_templates = {}
 
         dir_path = os.path.join(self.template_dir, service_set)
@@ -243,7 +245,7 @@ class DeployRunner(object):
         deploy_order = content.get("deploy_order", {})
 
         if pre_deploy:
-            print(">>> Running pre_deploy() for service set '{}'".format(service_set))
+            log.info("Running pre_deploy() for service set '{}'".format(service_set))
             pre_deploy(
                 project_name=self.project_name,
                 template_dir=dir_path,
@@ -251,8 +253,8 @@ class DeployRunner(object):
             )
 
         for stage in sorted(deploy_order.keys()):
-            print(
-                ">>> Entering stage '{}' of config in service set '{}'".format(
+            log.info(
+                "Entering stage '{}' of config in service set '{}'".format(
                     stage, service_set
                 )
             )
@@ -270,7 +272,7 @@ class DeployRunner(object):
                         )
                     )
 
-            print(">>> Running deploy() for service set '{}'".format(service_set))
+            log.info("Running deploy() for service set '{}'".format(service_set))
 
             processed_templates_this_stage = deploy(
                 project_name=self.project_name,
@@ -284,7 +286,7 @@ class DeployRunner(object):
             processed_templates.update(processed_templates_this_stage)
 
         if post_deploy:
-            print(">>> Running post_deploy() for service set '{}'".format(service_set))
+            log.info("Running post_deploy() for service set '{}'".format(service_set))
             post_deploy(
                 processed_templates=processed_templates,
                 project_name=self.project_name,
@@ -313,7 +315,7 @@ class DeployRunner(object):
         content = load_cfg_file(os.path.join(self.template_dir, "_cfg.yml"))
         _handle_secrets_and_imgs(content)
         deploy_order = content.get("deploy_order", {})
-    
+
         # Verify all service sets exist
         all_service_sets = []
         for stage, stage_data in deploy_order.items():
@@ -330,11 +332,11 @@ class DeployRunner(object):
             service_sets = deploy_order[stage].get("components", [])
             for service_set in service_sets:
                 if (
-                    self.service_sets_selected
-                    and service_set not in self.service_sets_selected
+                    self.service_sets_selected and
+                    service_set not in self.service_sets_selected
                 ):
-                    print(
-                        ">>> Skipping service set '{}', not selected for deploy at runtime".format(
+                    log.info(
+                        "Skipping service set '{}', not selected for deploy at runtime".format(
                             service_set
                         )
                     )

@@ -238,7 +238,7 @@ Select your environment file at runtime with the `-e` or `--env-file` command-li
 List the components available for you to deploy:
 ```
 (venv) $ ocdeployer -l
->>> Available components: ['platform', 'advisor', 'engine', 'vulnerability']
+Available components: ['platform', 'advisor', 'engine', 'vulnerability']
 ```
 
 Example to deploy platform, engine, and import secrets from "mysecretsproject":

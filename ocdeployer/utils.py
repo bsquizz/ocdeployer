@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import glob
 import json
+import logging
 import sys
 import threading
 import time
@@ -10,6 +11,10 @@ import yaml
 
 import sh
 from sh import ErrorReturnCode
+
+
+log = logging.getLogger(__name__)
+
 
 # Resource types and their cli shortcuts
 # Mostly listed here: https://docs.openshift.com/online/cli_reference/basic_cli_operations.html
@@ -119,25 +124,29 @@ def oc(*args, **kwargs):
     cmd_kwargs = " ".join(cmd_kwargs)
 
     if not _silent:
-        print(">>> Running command: oc {} {}".format(cmd_args, cmd_kwargs))
+        log.info("Running command: oc %s %s", cmd_args, cmd_kwargs)
 
     try:
         if _silent:
             output = sh.oc(*args, **kwargs).wait()
         else:
             output = sh.oc(
-                *args, **kwargs, _out=lambda line: print(line.rstrip())
+                *args, **kwargs, _out=lambda line: log.info(line.rstrip())
             ).wait()
         return output
     except ErrorReturnCode as err:
-        print(err.stderr.decode("utf-8").rstrip(), err.stdout.decode("utf-8").rstrip())
+        log.error(
+            "%s %s",
+            err.stderr.decode("utf-8").rstrip(),
+            err.stdout.decode("utf-8").rstrip(),
+        )
         if _reraise:
             raise
         elif _exit_on_err:
-            print(">>> Command failed!  Aborting.")
+            log.error("Command failed!  Aborting.")
             sys.exit(1)
         else:
-            print(">>> Warning: non-zero return code")
+            log.warning("Warning: non-zero return code")
 
 
 def get_json(restype, name=None):
@@ -185,7 +194,7 @@ def rollout(dc_name):
         for _ in range(0, 60):
             if _get_revision() != old_revision:
                 break
-            print(">>> Waiting for rollout on dc/{} to begin".format(dc_name))
+            log.info("Waiting for rollout on dc/%s to begin", dc_name)
             time.sleep(1)
 
     wait_for_ready("dc", dc_name)
@@ -267,15 +276,15 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
         _result_dict = dict()
     _result_dict[key] = False
 
-    print(">>> Waiting up to {}sec for {} to complete".format(timeout, key))
+    log.info("Waiting up to %dsec for '%s' to complete", timeout, key)
     while True:
-        print(">>> Checking if {} is complete...".format(key))
+        log.info("Checking if '%s' is complete...", key)
 
         j = get_json(restype, name)
 
         if _check_status_for_restype(restype, j):
             _result_dict[key] = True
-            print(">>> {} is ready!".format(key))
+            log.info("'%s' is ready!", key)
             return True  # done, return True
 
         if time.time() > timeout_time:
@@ -283,7 +292,7 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
         time.sleep(5)
 
     # if we get here, we timed out
-    print("Timed out waiting for {} after {} sec".format(key, timeout))
+    log.info("Timed out waiting for '%s' after %d sec", key, timeout)
     if exit_on_err:
         sys.exit(1)
     return False
@@ -317,7 +326,7 @@ def wait_for_ready_threaded(restype_name_list, timeout=300, exit_on_err=False):
     failed = [key for key, result in result_dict.items() if not result]
 
     if failed:
-        print(">>> Some resources failed to become ready: {}".format(", ".join(failed)))
+        log.info("Some resources failed to become ready: %s", ", ".join(failed))
         if exit_on_err:
             sys.exit(1)
         return False

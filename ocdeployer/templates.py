@@ -3,9 +3,13 @@ Helper methods for dealing with openshift template
 """
 import os
 import json
+import logging
 import re
 
 from .utils import oc, parse_restype, get_cfg_files_in_dir, load_cfg_file
+
+
+log = logging.getLogger(__name__)
 
 
 def get_templates_in_dir(path):
@@ -44,19 +48,18 @@ def _scale_limits_and_requests(data, scale_factor):
         old_val = limit_val[0] if isinstance(limit_val, tuple) else limit_val
         new_val = _scale_val(old_val, scale_factor)
         data["limits"][limit_key] = new_val
-        print(
-            "Adjusted limits for {}, old: {}, new: {}".format(
-                limit_key, old_val, new_val
-            )
+        log.info(
+            "Adjusted limits for '%s', old: %s, new: %s", limit_key, old_val, new_val
         )
     for request_key, request_val in data.get("requests", {}).items():
         old_val = request_val[0] if isinstance(request_val, tuple) else request_val
         new_val = _scale_val(old_val, scale_factor)
         data["requests"][request_key] = new_val
-        print(
-            "Adjusted requests for {}, old: {}, new: {}".format(
-                request_key, old_val, new_val
-            )
+        log.info(
+            "Adjusted requests for '%s', old: %s, new: %s",
+            request_key,
+            old_val,
+            new_val,
         )
 
 
@@ -90,10 +93,11 @@ def scale_resources(
             if key == "resources":
                 # If we hit a 'resources' dict, scale it.
                 if scale_factor <= 0:
-                    print(
-                        ">>> Removing resource requests/limits for {} '{}' found at {}".format(
-                            _obj_kind, _obj_name, _current_dict_path
-                        )
+                    log.info(
+                        "Removing resource requests/limits for %s '%s' found at %s",
+                        _obj_kind,
+                        _obj_name,
+                        _current_dict_path,
                     )
                     try:
                         del data["limits"]
@@ -101,10 +105,11 @@ def scale_resources(
                     except KeyError:
                         pass
                 else:
-                    print(
-                        ">>> Scaling resources for {} '{}' found at {}".format(
-                            _obj_kind, _obj_name, _current_dict_path
-                        )
+                    log.info(
+                        "Scaling resources for %s '%s' found at %s",
+                        _obj_kind,
+                        _obj_name,
+                        _current_dict_path,
                     )
                     _scale_limits_and_requests(data, scale_factor)
             if isinstance(data, list) or isinstance(data, dict):
@@ -172,11 +177,10 @@ class Template(object):
         for var_name, var_value in variables.items():
             vars_and_vals[var_name] = "{}={}".format(var_name, var_value)
 
-        print(
-            ">>> Processing template '{}' with vars '{}'".format(
-                self.file_name,
-                ", ".join([string for _, string in vars_and_vals.items()]),
-            )
+        log.info(
+            "Processing template '%s' with vars '%s'",
+            self.file_name,
+            ", ".join([string for _, string in vars_and_vals.items()]),
         )
 
         # Only insert the parameter if it was defined in the template
@@ -192,10 +196,9 @@ class Template(object):
                 skipped_vars.append(var_name)
 
         if skipped_vars:
-            print(
-                ">>> Warning: Skipped variables defined in config but not present in template: {}".format(
-                    ", ".join(skipped_vars)
-                )
+            log.warning(
+                "Skipped variables defined in config but not present in template: %s",
+                ", ".join(skipped_vars),
             )
 
         output = oc("process", "-f", self.path, "-o", "json", *param_args, _silent=True)
@@ -203,10 +206,10 @@ class Template(object):
         self.processed_content = json.loads(str(output))
 
         if resources_scale_factor > 0 and resources_scale_factor != 1:
-            print(
-                ">>> Scaling resources for template '{}' by factor of {}".format(
-                    self.file_name, resources_scale_factor
-                )
+            log.info(
+                "Scaling resources for template '%s' by factor of %f",
+                self.file_name,
+                resources_scale_factor,
             )
             scale_resources(self.processed_content, resources_scale_factor)
         return self.processed_content
