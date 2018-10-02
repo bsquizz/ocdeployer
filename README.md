@@ -78,7 +78,7 @@ optional arguments:
 * A secrets directory (default: `./secrets`). This is optional. Openshift YAML files containing a secret or list of secrets can be placed in here. Service sets which require imported secrets can use the secrets in this directory.
 * An environment file. This is optional. Defines parameters that should be passed to the templates.
 
-See the [examples](examples/README.md) to get a better idea of how all of this configuration comes together.
+See the [examples](example/README.md) to get a better idea of how all of this configuration comes together.
 
 ### Template Configuration
 
