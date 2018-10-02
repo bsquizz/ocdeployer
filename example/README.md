@@ -39,6 +39,7 @@ is set to `True`, however, we won't wait for the deployments to reach `active` s
 2) In the `templates` directory, we create two folders to represent each service set: `templates/setA` and `templates/setB`. We'll put the OpenShift YAML templates files into their appropriate directory: `nginx.yml` and `postgres.yml` go in `setA`, `mysql.yml` and `ruby-app.yml` go in `setB`. In addition, each service set folder gets its own `_cfg.yml` to define how that service set is deployed.
 
     `templates/setA/_cfg.yml` looks like this:
+
     ```yaml
     images:
       # Images our configs rely on. We will run 'oc import-image' on these.
@@ -56,9 +57,10 @@ is set to `True`, however, we won't wait for the deployments to reach `active` s
         # We'll deploy both components in stage zero
         - "mysql"
         - "postgres"
-
+    ```
 
     `templates/setB/_cfg.yml` looks like this:
+
     ```yaml
     requires:
     # This set cannot be deployed until 'set1' is deployed
@@ -108,11 +110,12 @@ is set to `True`, however, we won't wait for the deployments to reach `active` s
         rollout(deployment_name)
     ```
 
-4) The secrets these templates rely on which are too sensitive to store in the template data itself are kept in a yaml file (or copied into it at deploy runtime) in the `secrets` directory. See `mysql-secrets.yml` and `postgres-secrets.yml`.
+4) The secrets these templates rely on which are too sensitive to store in the template data itself are kept in a yaml file (or copied into it at deploy runtime) in the `secrets` directory.
+See [mysql-secrets.yml](secrets/mysql-secrets.yml) and [postgres-secrets.yml](secrets/postgres-secrets.yml).
 
 5) We define two environment files:
-* prod-env.yml -- defines the variables that apply when deploying these services to production
-* qa-env.yml -- defines the variables that apply when deploying these services to a QA env
+* [prod-env.yml](prod-env.yml) -- defines the variables that apply when deploying these services to production
+* [qa-env.yml](qa-env.yml) -- defines the variables that apply when deploying these services to a QA env
 
 ## Running the deploy
 
