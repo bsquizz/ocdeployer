@@ -97,6 +97,7 @@ def oc(*args, **kwargs):
         _reraise: if ErrorReturnCode is hit, don't exit, re-raise it
         _exit_on_err: sys.exit(1) if this command fails (default True)
         _silent: don't print command or output (default False)
+        _ignore_immutable: ignore errors related to immutable objects (default True) 
 
     Returns:
         None if cmd fails and _exit_on_err is False
@@ -105,8 +106,8 @@ def oc(*args, **kwargs):
     _exit_on_err = kwargs.pop("_exit_on_err", True)
     _silent = kwargs.pop("_silent", False)
     _reraise = kwargs.pop("_reraise", False)
+    _ignore_immutable = kwargs.pop("_ignore_immutable", True)
 
-    kwargs["_err_to_out"] = True
     kwargs["_bg_exc"] = True
 
     # Format the cmd args/kwargs for log printing before the command is run
@@ -126,27 +127,36 @@ def oc(*args, **kwargs):
     if not _silent:
         log.info("Running command: oc %s %s", cmd_args, cmd_kwargs)
 
+    err_lines = []
+
+    def _err_line_handler(line):
+        log.info("|  stderr  |%s", line.rstrip())
+        err_lines.append(line)
+
+    def _out_line_handler(line):
+        log.info("|  stdout  |%s", line.rstrip())
+
     try:
         if _silent:
             output = sh.oc(*args, **kwargs).wait()
         else:
             output = sh.oc(
-                *args, **kwargs, _out=lambda line: log.info(line.rstrip())
+                *args, **kwargs, _out=_out_line_handler, _err=_err_line_handler
             ).wait()
         return output
     except ErrorReturnCode as err:
-        log.error(
-            "%s %s",
-            err.stderr.decode("utf-8").rstrip(),
-            err.stdout.decode("utf-8").rstrip(),
+        immutable_errors_only = all(
+            "field is immutable after creation" in line for line in err_lines
         )
-        if _reraise:
+        if immutable_errors_only and _ignore_immutable:
+            log.warning("Ignoring immutable field errors")
+        elif _reraise:
             raise
         elif _exit_on_err:
             log.error("Command failed!  Aborting.")
             sys.exit(1)
         else:
-            log.warning("Warning: non-zero return code")
+            log.warning("Non-zero return code ignored")
 
 
 def get_json(restype, name=None):

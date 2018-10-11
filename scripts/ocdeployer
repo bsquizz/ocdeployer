@@ -36,7 +36,7 @@ def list_routes(project):
     for svc_name in route_data:
         if len(svc_name) > max_len:
             max_len = len(svc_name)
- 
+
     for svc_name, svc_route in route_data.items():
         log.info("%-*s %s", max_len, svc_name, svc_route)
 

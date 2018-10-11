@@ -332,8 +332,8 @@ class DeployRunner(object):
             service_sets = deploy_order[stage].get("components", [])
             for service_set in service_sets:
                 if (
-                    self.service_sets_selected and
-                    service_set not in self.service_sets_selected
+                    self.service_sets_selected
+                    and service_set not in self.service_sets_selected
                 ):
                     log.info(
                         "Skipping service set '{}', not selected for deploy at runtime".format(
