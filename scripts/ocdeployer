@@ -16,16 +16,18 @@ from ocdeployer.deploy import DeployRunner
 log = logging.getLogger("ocdeployer")
 
 
-def wipe(project):
-    if not prompter.yesno(
+def wipe(no_confirm, project):
+    if not no_confirm and prompter.yesno(
         "I'm about to delete everything in project '{}'.  Continue?".format(project),
         default="no",
     ):
-        oc("project", project, _exit_on_err=False)
-        oc("delete", "all", "--all", _exit_on_err=False)
-        oc("delete", "configmap", "--all", _exit_on_err=False)
-        oc("delete", "secret", "--all", _exit_on_err=False)
-        oc("delete", "pvc", "--all", _exit_on_err=False)
+        sys.exit(0)
+
+    oc("project", project, _exit_on_err=False)
+    oc("delete", "all", "--all", _exit_on_err=False)
+    oc("delete", "configmap", "--all", _exit_on_err=False)
+    oc("delete", "secret", "--all", _exit_on_err=False)
+    oc("delete", "pvc", "--all", _exit_on_err=False)
 
 
 def list_routes(project):
@@ -63,7 +65,7 @@ def main(args):
         sys.exit(1)
 
     if args.wipe:
-        return wipe(args.dst_project)
+        return wipe(args.no_confirm, args.dst_project)
 
     if args.list_routes:
         return list_routes(args.dst_project)
