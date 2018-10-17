@@ -8,7 +8,7 @@ import sys
 
 import prompter
 
-from ocdeployer.utils import oc, load_cfg_file, get_routes, get_cfg_files_in_dir
+from ocdeployer.utils import oc, load_cfg_file, get_routes, get_cfg_files_in_dir, switch_to_project
 from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
 
@@ -23,7 +23,7 @@ def wipe(no_confirm, project):
     ):
         sys.exit(0)
 
-    oc("project", project, _exit_on_err=False)
+    switch_to_project(project)
     oc("delete", "all", "--all", _exit_on_err=False)
     oc("delete", "configmap", "--all", _exit_on_err=False)
     oc("delete", "secret", "--all", _exit_on_err=False)
@@ -31,7 +31,7 @@ def wipe(no_confirm, project):
 
 
 def list_routes(project):
-    oc("project", project)
+    switch_to_project(project)
     log.info("The following routes now exist:")
     max_len = 10
     route_data = get_routes()
@@ -111,8 +111,7 @@ def main(args):
     else:
         variables_data = {}
 
-    oc("new-project", args.dst_project, _exit_on_err=False)
-    oc("project", args.dst_project)
+    switch_to_project(args.dst_project)
 
     DeployRunner(
         template_dir,

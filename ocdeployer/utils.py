@@ -159,6 +159,15 @@ def oc(*args, **kwargs):
             log.warning("Non-zero return code ignored")
 
 
+def switch_to_project(project):
+    try:
+        oc("get", "project", project, _reraise=True)
+    except ErrorReturnCode as err:
+        log.error("Unable to get project '%s', trying to create it...", project)
+        oc("new-project", project, _exit_on_err=True)
+    oc("project", project, _exit_on_err=True)
+
+
 def get_json(restype, name=None):
     """
     Run 'oc get' for a given resource type/name and return the json output.
