@@ -31,9 +31,10 @@ $ . .venv/bin/activate
 usage: ocdeployer [-h] [--no-confirm] [--secrets-local-dir SECRETS_LOCAL_DIR]
                   [--secrets-src-project SECRETS_SRC_PROJECT] [--all]
                   [--components COMPONENTS] [--env-file ENV_FILE]
-                  [--template-dir TEMPLATE_DIR] [--list-components]
-                  [--ignore-requires] [--scale-resources SCALE_RESOURCES]
+                  [--template-dir TEMPLATE_DIR] [--ignore-requires]
+                  [--scale-resources SCALE_RESOURCES]
                   [--custom-dir CUSTOM_DIR] [--wipe] [--list-routes]
+                  [--list-components] [--output {yaml,json}]
                   [dst_project]
 
 Deploy Tool
@@ -58,9 +59,6 @@ optional arguments:
                         Path to parameters config file (default: None)
   --template-dir TEMPLATE_DIR, -t TEMPLATE_DIR
                         Template directory (default ./templates)
-  --list-components, -l
-                        List base components available to select in the
-                        template dir and exit
   --ignore-requires, -i
                         Ignore the 'requires' statement in config files and
                         deploy anyway
@@ -72,6 +70,12 @@ optional arguments:
   --wipe, -w            Wipe the project (delete EVERYTHING in it)
   --list-routes, -r     List the routes currently configured in the project
                         and exit
+  --list-components, -l
+                        List base components available to select in the
+                        template dir and exit
+  --output {yaml,json}, -o {yaml,json}
+                        When using --list-* parameters, print output in yaml
+                        or json format
 ```
 
 ## Details
