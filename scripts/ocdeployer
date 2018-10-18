@@ -4,9 +4,11 @@ from __future__ import print_function
 import argparse
 import logging
 import os
+import json
 import sys
 
 import prompter
+import yaml
 
 from ocdeployer.utils import oc, load_cfg_file, get_routes, get_cfg_files_in_dir, switch_to_project
 from ocdeployer.secrets import SecretImporter
@@ -30,17 +32,37 @@ def wipe(no_confirm, project):
     oc("delete", "pvc", "--all", _exit_on_err=False)
 
 
-def list_routes(project):
+def list_routes(project, output=None):
     switch_to_project(project)
-    log.info("The following routes now exist:")
-    max_len = 10
     route_data = get_routes()
-    for svc_name in route_data:
-        if len(svc_name) > max_len:
-            max_len = len(svc_name)
 
-    for svc_name, svc_route in route_data.items():
-        log.info("%-*s %s", max_len, svc_name, svc_route)
+    if not output:
+        log.info("The following routes now exist:")
+        max_len = 10
+        for svc_name in route_data:
+            if len(svc_name) > max_len:
+                max_len = len(svc_name)
+        for svc_name, svc_route in route_data.items():
+            log.info("%-*s %s", max_len, svc_name, svc_route)
+
+    elif output == "json":
+        print(json.dumps(route_data, indent=2))
+
+    elif output == "yaml":
+        print(yaml.dump(route_data, default_flow_style=False))
+
+
+def list_components(all_components, output=None):
+    as_dict = {'components': all_components}
+
+    if not output:
+        log.info("Available components: %s", as_dict['components'])
+
+    elif output == "json":
+        print(json.dumps(as_dict, indent=2))
+
+    elif output == "yaml":
+        print(yaml.dump(as_dict, default_flow_style=False))
 
 
 def get_variables_data(variables_file):
@@ -68,7 +90,7 @@ def main(args):
         return wipe(args.no_confirm, args.dst_project)
 
     if args.list_routes:
-        return list_routes(args.dst_project)
+        return list_routes(args.dst_project, args.output)
 
     SecretImporter.local_dir = args.secrets_local_dir
     SecretImporter.source_project = args.secrets_src_project
@@ -87,8 +109,7 @@ def main(args):
     )
 
     if args.list_components:
-        log.info("Available components: %s", all_components)
-        sys.exit(0)
+        return list_components(all_components, args.output)
 
     if not args.all and not args.components:
         log.error("Error: no components selected for deploy")
@@ -175,12 +196,6 @@ if __name__ == "__main__":
         help="Template directory (default ./templates)",
     )
     parser.add_argument(
-        "--list-components",
-        "-l",
-        action="store_true",
-        help="List base components available to select in the template dir and exit",
-    )
-    parser.add_argument(
         "--ignore-requires",
         "-i",
         action="store_true",
@@ -211,6 +226,19 @@ if __name__ == "__main__":
         "-r",
         action="store_true",
         help="List the routes currently configured in the project and exit",
+    )
+    parser.add_argument(
+        "--list-components",
+        "-l",
+        action="store_true",
+        help="List base components available to select in the template dir and exit",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        choices=["yaml", "json"],
+        help="When using --list-* parameters, print output in yaml or json format"
     )
     args = parser.parse_args()
     main(args)
