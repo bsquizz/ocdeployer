@@ -30,11 +30,11 @@ $ . .venv/bin/activate
 (venv) $ ocdeployer -h
 usage: ocdeployer [-h] [--no-confirm] [--secrets-local-dir SECRETS_LOCAL_DIR]
                   [--secrets-src-project SECRETS_SRC_PROJECT] [--all]
-                  [--components COMPONENTS] [--env-file ENV_FILE]
+                  [--sets SETS] [--env-file ENV_FILE]
                   [--template-dir TEMPLATE_DIR] [--ignore-requires]
                   [--scale-resources SCALE_RESOURCES]
                   [--custom-dir CUSTOM_DIR] [--wipe] [--list-routes]
-                  [--list-components] [--output {yaml,json}]
+                  [--list-sets] [--output {yaml,json}] [--pick PICK]
                   [dst_project]
 
 Deploy Tool
@@ -45,15 +45,14 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --no-confirm, -f      Do not prompt for confirmation
-  --secrets-local-dir SECRETS_LOCAL_DIR, -d SECRETS_LOCAL_DIR
+  --secrets-local-dir SECRETS_LOCAL_DIR
                         Import secrets from local files in a directory
                         (default ./secrets)
-  --secrets-src-project SECRETS_SRC_PROJECT, -p SECRETS_SRC_PROJECT
+  --secrets-src-project SECRETS_SRC_PROJECT
                         Openshift project to import secrets from (default:
                         insights-ci)
-  --all, -a             Deploy all components
-  --components COMPONENTS, -c COMPONENTS
-                        Comma,separated,list of specific component names to
+  --all, -a             Deploy all service sets
+  --sets SETS, -s SETS  Comma,separated,list of specific service set names to
                         deploy
   --env-file ENV_FILE, -e ENV_FILE
                         Path to parameters config file (default: None)
@@ -62,7 +61,7 @@ optional arguments:
   --ignore-requires, -i
                         Ignore the 'requires' statement in config files and
                         deploy anyway
-  --scale-resources SCALE_RESOURCES, -s SCALE_RESOURCES
+  --scale-resources SCALE_RESOURCES
                         Factor to scale configured cpu/memory resource
                         requests/limits by
   --custom-dir CUSTOM_DIR, -u CUSTOM_DIR
@@ -70,18 +69,19 @@ optional arguments:
   --wipe, -w            Wipe the project (delete EVERYTHING in it)
   --list-routes, -r     List the routes currently configured in the project
                         and exit
-  --list-components, -l
-                        List base components available to select in the
-                        template dir and exit
+  --list-sets, -l       List service sets available to select in the template
+                        dir and exit
   --output {yaml,json}, -o {yaml,json}
                         When using --list-* parameters, print output in yaml
                         or json format
+  --pick PICK, -p PICK  Pick a single component from a service set and deploy
+                        that. E.g. '-p myset/myvm'
 ```
 
 ## Details
 `ocdeployer` relies on 4 pieces of information:
 * A templates directory (default: `./templates`) -- this houses your OpenShift YAML/JSON templates as well as special config files (named `_cfg.yml`). You can split your templates into folders, called `service sets`, and define a `_cfg.yml` inside each of these folders which takes care of deploying that specific service set. The base `_cfg.yml` defines the deploy order for all service sets, as well as any "global" secrets/images that should be imported that all services rely on.
-* A custom scripts directory (default: `./custom`). This is optional. Python scripts can be placed in here which can be run at pre-deploy/deploy/post-deploy stages for specific components.
+* A custom scripts directory (default: `./custom`). This is optional. Python scripts can be placed in here which can be run at pre-deploy/deploy/post-deploy stages for specific service sets.
 * A secrets directory (default: `./secrets`). This is optional. Openshift YAML files containing a secret or list of secrets can be placed in here. Service sets which require imported secrets can use the secrets in this directory.
 * An environment file. This is optional. Defines parameters that should be passed to the templates.
 
@@ -100,7 +100,7 @@ The best way to explain how template configuration works is to describe the proc
     ```yaml
     requires:
     # Here you can list other service sets that need to be deployed before this one can.
-    # Deployment will fail when processing this file if we see the required component has
+    # Deployment will fail when processing this file if we see the required service set has
     # not yet been deployed.
     - "myotherservice"
 
@@ -234,25 +234,25 @@ but not necessarily have to define each variable as a parameter in every single 
 
 Select your environment file at runtime with the `-e` or `--env-file` command-line option, e.g.:
 ```
-(venv) $ ocdeployer -c mycomponent -e my_env_file.yml myproject
+(venv) $ ocdeployer -s myset -e my_env_file.yml myproject
 ```
 
 ## Common usage
 
-List the components available for you to deploy:
+List the service sets available for you to deploy:
 ```
 (venv) $ ocdeployer -l
-Available components: ['platform', 'advisor', 'engine', 'vulnerability']
+Available service sets: ['platform', 'advisor', 'engine', 'vulnerability']
 ```
 
 Example to deploy platform, engine, and import secrets from "mysecretsproject":
 ```
-(venv) $ ocdeployer -c platform,engine --secrets-src mysecretsproject mynewproject
+(venv) $ ocdeployer -s platform,engine --secrets-src mysecretsproject mynewproject
 ```
 
-You can scale the cpu/memory requests/limits for all your resources using the `-s` flag:
+You can scale the cpu/memory requests/limits for all your resources using the `--scale-resources` flag:
 ```
-(venv) $ ocdeployer -c platform -s 0.5 mynewproject
+(venv) $ ocdeployer -s platform --scale-resources 0.5 mynewproject
 ```
 This will multiply any configured resource requests/limits in your template by the desired factor. If
 you haven't configured a request/limit, it will not be scaled. If you scale by `0`, the resource
