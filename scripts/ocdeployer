@@ -116,13 +116,13 @@ def main(args):
         sys.exit(1)
 
     if args.all:
-        components_selected = ", ".join(all_components)
+        components_selected = all_components
     else:
-        components_selected = ", ".join(args.components.split(","))
+        components_selected = args.components.split(",")
 
     if not args.no_confirm and not prompter.yesno(
         "Deploying components '{}' to project '{}'.  Continue?".format(
-            components_selected, args.dst_project
+            ", ".join(components_selected), args.dst_project
         )
     ):
         sys.exit(0)
