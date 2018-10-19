@@ -155,6 +155,7 @@ class DeployRunner(object):
         service_sets_selected,
         resources_scale_factor,
         custom_dir,
+        specific_component=None,
     ):
         self.template_dir = template_dir
         self.custom_dir = custom_dir
@@ -164,6 +165,7 @@ class DeployRunner(object):
         self.service_sets_selected = service_sets_selected
         self.resources_scale_factor = resources_scale_factor
         self._deployed_service_sets = []
+        self.specific_component = specific_component
 
     def _get_variables(self, service_set, component):
         """
@@ -260,7 +262,11 @@ class DeployRunner(object):
             )
 
             # Collect the components defined in this stage
-            components = deploy_order[stage].get("components", [])
+            if self.specific_component:
+                # If a single component has been 'picked', just deploy that one
+                components = [self.specific_component]
+            else:
+                components = deploy_order[stage].get("components", [])
 
             # Make sure all the component names have a template
             templates_found = get_templates_in_dir(dir_path)

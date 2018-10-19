@@ -52,11 +52,11 @@ def list_routes(project, output=None):
         print(yaml.dump(route_data, default_flow_style=False))
 
 
-def list_components(all_components, output=None):
-    as_dict = {'components': all_components}
+def list_sets(all_sets, output=None):
+    as_dict = {'service_sets': all_sets}
 
     if not output:
-        log.info("Available components: %s", as_dict['components'])
+        log.info("Available service sets: %s", as_dict['service_sets'])
 
     elif output == "json":
         print(json.dumps(as_dict, indent=2))
@@ -82,7 +82,7 @@ def get_variables_data(variables_file):
 
 
 def main(args):
-    if not args.dst_project and not args.list_components:
+    if not args.dst_project and not args.list_sets:
         log.error("Error: no destination project given")
         sys.exit(1)
 
@@ -103,28 +103,38 @@ def main(args):
         log.error("Error: template dir '%s' invalid", template_dir)
         sys.exit(1)
 
-    all_components = walk[1]
-    all_components.extend(
-        [os.path.basename(f) for f in get_cfg_files_in_dir(template_dir)]
-    )
+    all_sets = walk[1]
 
-    if args.list_components:
-        return list_components(all_components, args.output)
+    if args.list_sets:
+        return list_sets(all_sets, args.output)
 
-    if not args.all and not args.components:
-        log.error("Error: no components selected for deploy")
+    if not args.all and not args.sets and not args.pick:
+        log.error("Error: no service sets or components selected for deploy.  Use --sets, --all, or --pick")
         sys.exit(1)
 
-    if args.all:
-        components_selected = all_components
-    else:
-        components_selected = args.components.split(",")
-
-    if not args.no_confirm and not prompter.yesno(
-        "Deploying components '{}' to project '{}'.  Continue?".format(
-            ", ".join(components_selected), args.dst_project
+    specific_component = None
+    confirm_msg = None
+    if args.pick:
+        try:
+            service_set, specific_component = args.pick.split("/")
+        except ValueError:
+            log.error("Invalid format for '--pick', use: 'service_set/component'")
+            sys.exit(1)
+        sets_selected = [service_set]
+        confirm_msg = "Deploying single component '{}' to project '{}'.  Continue?".format(
+            args.pick, args.dst_project
         )
-    ):
+    else:
+        if args.all:
+            sets_selected = all_sets
+        else:
+            sets_selected = args.sets.split(",")
+        confirm_msg = "Deploying service sets '{}' to project '{}'.  Continue?".format(
+                ", ".join(sets_selected), args.dst_project
+            )
+
+    if not args.no_confirm and not prompter.yesno(confirm_msg):
+        log.info("Aborted by user")
         sys.exit(0)
 
     if args.env_file:
@@ -139,9 +149,10 @@ def main(args):
         args.dst_project,
         variables_data,
         ignore_requires=args.ignore_requires,
-        service_sets_selected=components_selected,
+        service_sets_selected=sets_selected,
         resources_scale_factor=args.scale_resources,
         custom_dir=args.custom_dir,
+        specific_component=specific_component,
     ).run()
 
     list_routes(args.dst_project)
@@ -157,26 +168,24 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--secrets-local-dir",
-        "-d",
         type=str,
         default=os.path.join(os.getcwd(), "secrets"),
         help="Import secrets from local files in a directory (default ./secrets)",
     )
     parser.add_argument(
         "--secrets-src-project",
-        "-p",
         type=str,
         default="insights-ci",
         help="Openshift project to import secrets from (default: insights-ci)",
     )
     parser.add_argument(
-        "--all", "-a", action="store_true", help="Deploy all components"
+        "--all", "-a", action="store_true", help="Deploy all service sets"
     )
     parser.add_argument(
-        "--components",
-        "-c",
+        "--sets",
+        "-s",
         type=str,
-        help="Comma,separated,list of specific component names to deploy",
+        help="Comma,separated,list of specific service set names to deploy",
     )
     parser.add_argument(
         "dst_project", type=str, nargs="?", help="Destination project to deploy to"
@@ -203,7 +212,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--scale-resources",
-        "-s",
         type=float,
         default=1.0,
         help="Factor to scale configured cpu/memory resource requests/limits by",
@@ -228,10 +236,10 @@ if __name__ == "__main__":
         help="List the routes currently configured in the project and exit",
     )
     parser.add_argument(
-        "--list-components",
+        "--list-sets",
         "-l",
         action="store_true",
-        help="List base components available to select in the template dir and exit",
+        help="List service sets available to select in the template dir and exit",
     )
     parser.add_argument(
         "--output",
@@ -239,6 +247,13 @@ if __name__ == "__main__":
         default=None,
         choices=["yaml", "json"],
         help="When using --list-* parameters, print output in yaml or json format"
+    )
+    parser.add_argument(
+        "--pick",
+        "-p",
+        default=None,
+        type=str,
+        help="Pick a single component from a service set and deploy that.  E.g. '-p myset/myvm'"
     )
     args = parser.parse_args()
     main(args)
