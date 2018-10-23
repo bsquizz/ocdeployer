@@ -50,7 +50,7 @@ optional arguments:
                         (default ./secrets)
   --secrets-src-project SECRETS_SRC_PROJECT
                         Openshift project to import secrets from (default:
-                        insights-ci)
+                        secrets)
   --all, -a             Deploy all service sets
   --sets SETS, -s SETS  Comma,separated,list of specific service set names to
                         deploy

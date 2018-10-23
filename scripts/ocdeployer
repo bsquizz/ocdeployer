@@ -175,8 +175,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--secrets-src-project",
         type=str,
-        default="insights-ci",
-        help="Openshift project to import secrets from (default: insights-ci)",
+        default="secrets",
+        help="Openshift project to import secrets from (default: secrets)",
     )
     parser.add_argument(
         "--all", "-a", action="store_true", help="Deploy all service sets"
