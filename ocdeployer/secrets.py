@@ -37,14 +37,19 @@ def parse_secret_file(path):
 
 def import_secrets_from_dir(path):
     files = get_cfg_files_in_dir(path)
-    imported_names = []
+    secrets = {}
     for secret_file in files:
-        secrets = parse_secret_file(secret_file)
-        for secret_name, secret_data in secrets.items():
-            log.info("Importing secret '%s' from '%s'", secret_name, secret_file)
-            oc("apply", "-f", "-", _silent=True, _in=json.dumps(secret_data))
-            imported_names.append(secret_name)
-    return imported_names
+        secrets_in_file = parse_secret_file(secret_file)
+        log.info("Loaded secrets from file '%s", secret_file)
+        for secret_name in secrets_in_file:
+            if secret_name in secrets:
+                raise ValueError(
+                    "Secret with name '{}' defined twice in secrets dir".format(
+                        secret_name
+                    )
+                )
+        secrets.update(secrets_in_file)
+    return secrets
 
 
 def import_secret_from_project(project, secret_name):
@@ -59,12 +64,37 @@ def import_secret_from_project(project, secret_name):
 
 
 class SecretImporter(object):
-    """Stores the project we import secrets from, and the method to handle importing."""
+    """
+    A singleton which handles importing secrets.
+
+    Keeps track of which secrets have been imported so we don't keep re-importing.
+    """
 
     source_project = "secrets"
     local_dir = None
-
+    local_secrets_data = None
+    local_secrets_loaded = False
     imported_secret_names = []
+
+    @classmethod
+    def _import(cls, name):
+        if cls.local_dir and not cls.local_secrets_loaded:
+            cls.local_secrets_data = import_secrets_from_dir(cls.local_dir)
+
+        if cls.local_secrets_data:
+            for secret_name, secret_data in cls.local_secrets_data.items():
+                if secret_name == name:
+                    log.info("Importing secret '%s' from local storage", name)
+                    oc("apply", "-f", "-", _silent=True, _in=json.dumps(secret_data))
+                    cls.imported_secret_names.append(name)
+
+        # Check if the directory import took care of it... if not, import from project...
+        if name not in cls.imported_secret_names:
+            log.info(
+                "Secret '%s' not yet imported, trying import from project...", name
+            )
+            import_secret_from_project(cls.source_project, name)
+            cls.imported_secret_names.append(name)
 
     @classmethod
     def do_import(cls, name, verify=False):
@@ -75,17 +105,7 @@ class SecretImporter(object):
         secret we want is still not imported, we try to import from source_project instead
         """
         if name not in cls.imported_secret_names:
-            if cls.local_dir:
-                log.info("Importing secrets from dir '%s'", cls.local_dir)
-                cls.imported_secret_names.extend(import_secrets_from_dir(cls.local_dir))
-
-            # Check if the directory import took care of it... if not, import from project...
-            if name not in cls.imported_secret_names:
-                log.info(
-                    "Secret '%s' not yet imported, trying import from project...", name
-                )
-                import_secret_from_project(cls.source_project, name)
-                cls.imported_secret_names.append(name)
+            cls._import(name)
 
         if verify:
             exists = oc("get", "secret", name, _exit_on_err=False)
