@@ -140,8 +140,9 @@ def oc(*args, **kwargs):
         out_lines.append(line)
 
     try:
-        sh.oc(*args, **kwargs, _out=_out_line_handler, _err=_err_line_handler).wait()
-        return "\n".join(out_lines)
+        return sh.oc(
+            *args, **kwargs, _tee=True, _out=_out_line_handler, _err=_err_line_handler
+        ).wait()
     except ErrorReturnCode as err:
         immutable_errors_only = False
 

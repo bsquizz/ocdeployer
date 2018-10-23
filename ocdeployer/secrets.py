@@ -55,7 +55,7 @@ def import_secrets_from_dir(path):
 def import_secret_from_project(project, secret_name):
     log.info("Importing secret '%s' from project '%s'", secret_name, project)
     oc(
-        oc("export", "secret", secret_name, o="json", n=project, _silent=True),
+        oc("get", "--export", "secret", secret_name, o="json", n=project, _silent=True),
         "apply",
         "-f",
         "-",
