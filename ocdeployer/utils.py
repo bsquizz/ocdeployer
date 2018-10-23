@@ -128,6 +128,7 @@ def oc(*args, **kwargs):
         log.info("Running command: oc %s %s", cmd_args, cmd_kwargs)
 
     err_lines = []
+    out_lines = []
 
     def _err_line_handler(line):
         log.info(" |stderr| %s", line.rstrip())
@@ -136,12 +137,11 @@ def oc(*args, **kwargs):
     def _out_line_handler(line):
         if not _silent:
             log.info(" |stdout| %s", line.rstrip())
+        out_lines.append(line)
 
     try:
-        output = sh.oc(
-            *args, **kwargs, _out=_out_line_handler, _err=_err_line_handler
-        ).wait()
-        return output
+        sh.oc(*args, **kwargs, _out=_out_line_handler, _err=_err_line_handler).wait()
+        return "\n".join(out_lines)
     except ErrorReturnCode as err:
         immutable_errors_only = False
 
