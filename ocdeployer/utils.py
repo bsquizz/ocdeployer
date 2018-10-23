@@ -96,7 +96,7 @@ def oc(*args, **kwargs):
     Optional kwargs:
         _reraise: if ErrorReturnCode is hit, don't exit, re-raise it
         _exit_on_err: sys.exit(1) if this command fails (default True)
-        _silent: don't print command or output (default False)
+        _silent: don't print command or resulting stdout (default False)
         _ignore_immutable: ignore errors related to immutable objects (default True) 
 
     Returns:
@@ -130,24 +130,26 @@ def oc(*args, **kwargs):
     err_lines = []
 
     def _err_line_handler(line):
-        log.info("|  stderr  |%s", line.rstrip())
+        log.info(" |stderr| %s", line.rstrip())
         err_lines.append(line)
 
     def _out_line_handler(line):
-        log.info("|  stdout  |%s", line.rstrip())
+        if not _silent:
+            log.info(" |stdout| %s", line.rstrip())
 
     try:
-        if _silent:
-            output = sh.oc(*args, **kwargs).wait()
-        else:
-            output = sh.oc(
-                *args, **kwargs, _out=_out_line_handler, _err=_err_line_handler
-            ).wait()
+        output = sh.oc(
+            *args, **kwargs, _out=_out_line_handler, _err=_err_line_handler
+        ).wait()
         return output
     except ErrorReturnCode as err:
-        immutable_errors_only = all(
-            "field is immutable after creation" in line for line in err_lines
-        )
+        immutable_errors_only = False
+
+        if err_lines:
+            immutable_errors_only = all(
+                "field is immutable after creation" in line for line in err_lines
+            )
+
         if immutable_errors_only and _ignore_immutable:
             log.warning("Ignoring immutable field errors")
         elif _reraise:
