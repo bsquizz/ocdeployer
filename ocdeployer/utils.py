@@ -146,6 +146,9 @@ def oc(*args, **kwargs):
     except ErrorReturnCode as err:
         immutable_errors_only = False
 
+        # Ignore warnings that are printed to stderr
+        err_lines = [line for line in err_lines if not line.lstrip().startswith("Warning:")]
+
         if err_lines:
             immutable_errors_only = all(
                 "field is immutable after creation" in line for line in err_lines
