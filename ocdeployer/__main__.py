@@ -113,7 +113,7 @@ def main(args):
         sys.exit(1)
 
     specific_component = None
-    confirm_msg = None
+
     if args.pick:
         try:
             service_set, specific_component = args.pick.split("/")
@@ -158,7 +158,8 @@ def main(args):
     list_routes(args.dst_project)
 
 
-if __name__ == "__main__":
+def cli():
+
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("sh").setLevel(logging.CRITICAL)
 
@@ -257,3 +258,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(args)
+
+
+if __name__ == "__main__":
+    cli()

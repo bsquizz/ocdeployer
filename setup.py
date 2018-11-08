@@ -18,7 +18,6 @@ setup(
     setup_requires=["setuptools_scm"],
     include_package_data=True,
     install_requires=["sh", "prompter", "pyyaml"],
-    scripts=["scripts/ocdeployer"],
     classifiers=[
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
