@@ -28,55 +28,84 @@ $ python3 -m venv .venv
 $ . .venv/bin/activate
 (venv) $ pip install -r requirements.txt
 (venv) $ ocdeployer -h
-usage: ocdeployer [-h] [--no-confirm] [--secrets-local-dir SECRETS_LOCAL_DIR]
-                  [--secrets-src-project SECRETS_SRC_PROJECT] [--all]
-                  [--sets SETS] [--env-file ENV_FILE]
-                  [--template-dir TEMPLATE_DIR] [--ignore-requires]
-                  [--scale-resources SCALE_RESOURCES]
-                  [--custom-dir CUSTOM_DIR] [--wipe] [--list-routes]
-                  [--list-sets] [--output {yaml,json}] [--pick PICK]
-                  [dst_project]
+Usage: ocdeployer [OPTIONS] COMMAND [ARGS]...
+
+  Deploys components to a given cluster. NOTE: You need the openshift cli
+  tool ('oc') installed and to login to your openshift cluster before
+  running the tool.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  deploy       Deploy to project
+  list-routes  List routes currently in the project
+  list-sets    List service sets available in template dir
+  wipe         Delete everything from project
 
 Deploy Tool
 
-positional arguments:
-  dst_project           Destination project to deploy to
+Usage: ocdeployer deploy [OPTIONS] DST_PROJECT
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --no-confirm, -f      Do not prompt for confirmation
-  --secrets-local-dir SECRETS_LOCAL_DIR
-                        Import secrets from local files in a directory
-                        (default ./secrets)
-  --secrets-src-project SECRETS_SRC_PROJECT
-                        Openshift project to import secrets from (default:
-                        secrets)
-  --all, -a             Deploy all service sets
-  --sets SETS, -s SETS  Comma,separated,list of specific service set names to
-                        deploy
-  --env-file ENV_FILE, -e ENV_FILE
-                        Path to parameters config file (default: None)
-  --template-dir TEMPLATE_DIR, -t TEMPLATE_DIR
-                        Template directory (default ./templates)
-  --ignore-requires, -i
-                        Ignore the 'requires' statement in config files and
-                        deploy anyway
-  --scale-resources SCALE_RESOURCES
-                        Factor to scale configured cpu/memory resource
-                        requests/limits by
-  --custom-dir CUSTOM_DIR, -u CUSTOM_DIR
-                        Custom deploy scripts directory (default ./custom)
-  --wipe, -w            Wipe the project (delete EVERYTHING in it)
-  --list-routes, -r     List the routes currently configured in the project
-                        and exit
-  --list-sets, -l       List service sets available to select in the template
-                        dir and exit
-  --output {yaml,json}, -o {yaml,json}
-                        When using --list-* parameters, print output in yaml
-                        or json format
-  --pick PICK, -p PICK  Pick a single component from a service set and deploy
-                        that. E.g. '-p myset/myvm'
-```
+  Deploy to project
+
+Options:
+  -f, --no-confirm            Do not prompt for confirmation
+  --secrets-local-dir TEXT    Import secrets from local files in a directory
+                              (default ./secrets)
+  -s, --sets TEXT             Comma,separated,list of specific service set
+                              names to deploy
+  -a, --all                   Deploy all service sets
+  --secrets-src-project TEXT  Openshift project to import secrets from
+                              (default: secrets)
+  -e, --env-file TEXT         Path to parameters config file (default: None)
+  -t, --template-dir TEXT     Template directory (default ./templates)
+  -i, --ignore-requires TEXT  Ignore the 'requires' statement in config files
+                              and deploy anyway
+  --scale-resources FLOAT     Factor to scale configured cpu/memory resource
+                              requests/limits by
+  -u, --custom-dir TEXT       Custom deploy scripts directory (default
+                              ./custom)
+  -p, --pick TEXT             Pick a single component from a service set and
+                              deploy that.  E.g. '-p myset/myvm'
+  --help                      Show this message and exit.
+
+
+Wipe Tool
+
+Usage: ocdeployer wipe [OPTIONS] DST_PROJECT
+
+  Delete everything from project
+
+Options:
+  -f, --no-confirm  Do not prompt for confirmation
+  --help            Show this message and exit.
+
+
+List Services Tool
+
+Usage: ocdeployer list-sets [OPTIONS]
+
+  List service sets available in template dir
+
+Options:
+  -t, --template-dir TEXT   Template directory (default ./templates)
+  -o, --output [yaml|json]  When listing parameters, print output in yaml or
+                            json format
+  --help                    Show this message and exit.
+
+
+List Routes Tool
+
+Usage: ocdeployer list-routes [OPTIONS] DST_PROJECT
+
+  List routes currently in the project
+
+Options:
+  -o, --output [yaml|json]  When listing parameters, print output in yaml or
+                            json format
+  --help                    Show this message and exit.
+
 
 ## Details
 `ocdeployer` relies on 4 pieces of information:

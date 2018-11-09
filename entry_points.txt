@@ -1,2 +1,2 @@
 [console_scripts]
-ocdeployer = ocdeployer.__main__:cli
+ocdeployer = ocdeployer.__main__:main

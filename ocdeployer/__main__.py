@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-import argparse
+import click
 import logging
 import os
 import json
@@ -10,12 +10,14 @@ import sys
 import prompter
 import yaml
 
-from ocdeployer.utils import oc, load_cfg_file, get_routes, get_cfg_files_in_dir, switch_to_project
+from ocdeployer.utils import oc, load_cfg_file, get_routes, switch_to_project
 from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
 
 
 log = logging.getLogger("ocdeployer")
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("sh").setLevel(logging.CRITICAL)
 
 
 def wipe(no_confirm, project):
@@ -52,8 +54,18 @@ def list_routes(project, output=None):
         print(yaml.dump(route_data, default_flow_style=False))
 
 
-def list_sets(all_sets, output=None):
-    as_dict = {'service_sets': all_sets}
+def all_sets(template_dir):
+    try:
+        walk = next(os.walk(template_dir))
+    except StopIteration:
+        log.error("Error: template dir '%s' invalid", template_dir)
+        sys.exit(1)
+
+    return walk[1]
+
+
+def list_sets(template_dir, output=None):
+    as_dict = {'service_sets': all_sets(template_dir)}
 
     if not output:
         log.info("Available service sets: %s", as_dict['service_sets'])
@@ -81,184 +93,127 @@ def get_variables_data(variables_file):
     return variables_data
 
 
-def main(args):
-    if not args.dst_project and not args.list_sets:
+@click.group(
+    help="Deploys components to a given cluster. NOTE: You need the openshift cli tool"
+         " ('oc') installed and to login to your openshift cluster before running the tool."
+    )
+def main():
+    """Main ocdeployer group"""
+    pass
+
+
+@main.command("deploy", help="Deploy to project")
+@click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
+@click.option("--secrets-local-dir", default=os.path.join(os.getcwd(), "secrets"),
+              help="Import secrets from local files in a directory (default ./secrets)")
+@click.option("--sets", "-s",  help="Comma,separated,list of specific service set names to deploy")
+@click.option("--all", "-a", "all_services", is_flag=True, help="Deploy all service sets")
+@click.option("--secrets-src-project", default="secrets",
+              help="Openshift project to import secrets from (default: secrets)")
+@click.option("--env-file", "-e", default="",
+              help="Path to parameters config file (default: None)")
+@click.option("--template-dir", "-t", default=os.path.join(os.getcwd(), "templates"),
+              help="Template directory (default ./templates)")
+@click.option("--ignore-requires", "-i",
+              help="Ignore the 'requires' statement in config files and deploy anyway")
+@click.option("--scale-resources", type=float, default=1.0,
+              help="Factor to scale configured cpu/memory resource requests/limits by")
+@click.option("--custom-dir", "-u", default=os.path.join(os.getcwd(), "custom"),
+              help="Custom deploy scripts directory (default ./custom)")
+@click.option("--pick", "-p", default=None, help="Pick a single component from a service"
+                                                 " set and deploy that.  E.g. '-p myset/myvm'")
+@click.argument("dst_project")
+def deploy_to_project(
+    dst_project, no_confirm, secrets_local_dir, sets, all_services, secrets_src_project, env_file,
+    template_dir, ignore_requires, scale_resources, custom_dir, pick
+):
+
+    if not dst_project:
         log.error("Error: no destination project given")
         sys.exit(1)
 
-    if args.wipe:
-        return wipe(args.no_confirm, args.dst_project)
+    SecretImporter.local_dir = secrets_local_dir
+    SecretImporter.source_project = secrets_src_project
 
-    if args.list_routes:
-        return list_routes(args.dst_project, args.output)
+    template_dir = os.path.abspath(template_dir)
 
-    SecretImporter.local_dir = args.secrets_local_dir
-    SecretImporter.source_project = args.secrets_src_project
-
-    template_dir = os.path.abspath(args.template_dir)
-
-    try:
-        walk = next(os.walk(template_dir))
-    except StopIteration:
-        log.error("Error: template dir '%s' invalid", template_dir)
-        sys.exit(1)
-
-    all_sets = walk[1]
-
-    if args.list_sets:
-        return list_sets(all_sets, args.output)
-
-    if not args.all and not args.sets and not args.pick:
-        log.error("Error: no service sets or components selected for deploy.  Use --sets, --all, or --pick")
+    if not all_services and not sets and not pick:
+        log.error(
+            "Error: no service sets or components selected for deploy."
+            " Use --sets, --all, or --pick")
         sys.exit(1)
 
     specific_component = None
 
-    if args.pick:
+    if pick:
         try:
-            service_set, specific_component = args.pick.split("/")
+            service_set, specific_component = pick.split("/")
         except ValueError:
             log.error("Invalid format for '--pick', use: 'service_set/component'")
             sys.exit(1)
         sets_selected = [service_set]
         confirm_msg = "Deploying single component '{}' to project '{}'.  Continue?".format(
-            args.pick, args.dst_project
+            pick, dst_project
         )
     else:
-        if args.all:
-            sets_selected = all_sets
+        if all_services:
+            sets_selected = all_sets(template_dir)
         else:
-            sets_selected = args.sets.split(",")
+            sets_selected = sets.split(",")
         confirm_msg = "Deploying service sets '{}' to project '{}'.  Continue?".format(
-                ", ".join(sets_selected), args.dst_project
+                ", ".join(sets_selected), dst_project
             )
 
-    if not args.no_confirm and not prompter.yesno(confirm_msg):
+    if not no_confirm and not prompter.yesno(confirm_msg):
         log.info("Aborted by user")
         sys.exit(0)
 
-    if args.env_file:
-        variables_data = get_variables_data(args.env_file)
+    if env_file:
+        variables_data = get_variables_data(env_file)
     else:
         variables_data = {}
 
-    switch_to_project(args.dst_project)
+    switch_to_project(dst_project)
 
     DeployRunner(
         template_dir,
-        args.dst_project,
+        dst_project,
         variables_data,
-        ignore_requires=args.ignore_requires,
+        ignore_requires=ignore_requires,
         service_sets_selected=sets_selected,
-        resources_scale_factor=args.scale_resources,
-        custom_dir=args.custom_dir,
+        resources_scale_factor=scale_resources,
+        custom_dir=custom_dir,
         specific_component=specific_component,
     ).run()
 
-    list_routes(args.dst_project)
+    list_routes(dst_project)
 
 
-def cli():
+@main.command("wipe", help="Delete everything from project")
+@click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
+@click.argument("dst_project")
+def wipe_project(no_confirm, dst_project):
+    return wipe(no_confirm, dst_project)
 
-    logging.basicConfig(level=logging.INFO)
-    logging.getLogger("sh").setLevel(logging.CRITICAL)
 
-    parser = argparse.ArgumentParser(description="Deploy Tool")
-    parser.add_argument(
-        "--no-confirm", "-f", action="store_true", help="Do not prompt for confirmation"
-    )
-    parser.add_argument(
-        "--secrets-local-dir",
-        type=str,
-        default=os.path.join(os.getcwd(), "secrets"),
-        help="Import secrets from local files in a directory (default ./secrets)",
-    )
-    parser.add_argument(
-        "--secrets-src-project",
-        type=str,
-        default="secrets",
-        help="Openshift project to import secrets from (default: secrets)",
-    )
-    parser.add_argument(
-        "--all", "-a", action="store_true", help="Deploy all service sets"
-    )
-    parser.add_argument(
-        "--sets",
-        "-s",
-        type=str,
-        help="Comma,separated,list of specific service set names to deploy",
-    )
-    parser.add_argument(
-        "dst_project", type=str, nargs="?", help="Destination project to deploy to"
-    )
-    parser.add_argument(
-        "--env-file",
-        "-e",
-        default="",
-        type=str,
-        help="Path to parameters config file (default: None)",
-    )
-    parser.add_argument(
-        "--template-dir",
-        "-t",
-        type=str,
-        default=os.path.join(os.getcwd(), "templates"),
-        help="Template directory (default ./templates)",
-    )
-    parser.add_argument(
-        "--ignore-requires",
-        "-i",
-        action="store_true",
-        help="Ignore the 'requires' statement in config files and deploy anyway",
-    )
-    parser.add_argument(
-        "--scale-resources",
-        type=float,
-        default=1.0,
-        help="Factor to scale configured cpu/memory resource requests/limits by",
-    )
-    parser.add_argument(
-        "--custom-dir",
-        "-u",
-        type=str,
-        default=os.path.join(os.getcwd(), "custom"),
-        help="Custom deploy scripts directory (default ./custom)",
-    )
-    parser.add_argument(
-        "--wipe",
-        "-w",
-        action="store_true",
-        help="Wipe the project (delete EVERYTHING in it)",
-    )
-    parser.add_argument(
-        "--list-routes",
-        "-r",
-        action="store_true",
-        help="List the routes currently configured in the project and exit",
-    )
-    parser.add_argument(
-        "--list-sets",
-        "-l",
-        action="store_true",
-        help="List service sets available to select in the template dir and exit",
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        default=None,
-        choices=["yaml", "json"],
-        help="When using --list-* parameters, print output in yaml or json format"
-    )
-    parser.add_argument(
-        "--pick",
-        "-p",
-        default=None,
-        type=str,
-        help="Pick a single component from a service set and deploy that.  E.g. '-p myset/myvm'"
-    )
-    args = parser.parse_args()
-    main(args)
+@main.command("list-routes", help="List routes currently in the project")
+@click.argument("dst_project")
+@click.option("--output", "-o", default=None, type=click.Choice(["yaml", "json"]),
+              help="When listing parameters, print output in yaml or json format")
+def list_act_routes(dst_project, output):
+    return list_routes(dst_project, output)
+
+
+@main.command(
+    "list-sets",  help="List service sets available in template dir"
+)
+@click.option("--template-dir", "-t", default=os.path.join(os.getcwd(), "templates"),
+              help="Template directory (default ./templates)")
+@click.option("--output", "-o", default=None, type=click.Choice(["yaml", "json"]),
+              help="When listing parameters, print output in yaml or json format")
+def list_act_sets(template_dir, output):
+    return list_sets(template_dir, output)
 
 
 if __name__ == "__main__":
-    cli()
+    main()
