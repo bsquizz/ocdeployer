@@ -147,7 +147,9 @@ def oc(*args, **kwargs):
         immutable_errors_only = False
 
         # Ignore warnings that are printed to stderr
-        err_lines = [line for line in err_lines if not line.lstrip().startswith("Warning:")]
+        err_lines = [
+            line for line in err_lines if not line.lstrip().startswith("Warning:")
+        ]
 
         if err_lines:
             immutable_errors_only = all(

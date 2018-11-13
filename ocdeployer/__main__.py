@@ -6,6 +6,7 @@ import logging
 import os
 import json
 import sys
+import re
 
 import prompter
 import yaml
@@ -20,7 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("sh").setLevel(logging.CRITICAL)
 
 
-def wipe(no_confirm, project):
+def wipe(no_confirm, project, label):
     if not no_confirm and prompter.yesno(
         "I'm about to delete everything in project '{}'.  Continue?".format(project),
         default="no",
@@ -28,10 +29,15 @@ def wipe(no_confirm, project):
         sys.exit(0)
 
     switch_to_project(project)
-    oc("delete", "all", "--all", _exit_on_err=False)
-    oc("delete", "configmap", "--all", _exit_on_err=False)
-    oc("delete", "secret", "--all", _exit_on_err=False)
-    oc("delete", "pvc", "--all", _exit_on_err=False)
+
+    kwargs = {"_exit_on_err": False}
+    if label:
+        kwargs["selector"] = label
+
+    oc("delete", "all", "--all", **kwargs)
+    oc("delete", "configmap", "--all", **kwargs)
+    oc("delete", "secret", "--all", **kwargs)
+    oc("delete", "pvc", "--all", **kwargs)
 
 
 def list_routes(project, output=None):
@@ -65,10 +71,10 @@ def all_sets(template_dir):
 
 
 def list_sets(template_dir, output=None):
-    as_dict = {'service_sets': all_sets(template_dir)}
+    as_dict = {"service_sets": all_sets(template_dir)}
 
     if not output:
-        log.info("Available service sets: %s", as_dict['service_sets'])
+        log.info("Available service sets: %s", as_dict["service_sets"])
 
     elif output == "json":
         print(json.dumps(as_dict, indent=2))
@@ -93,10 +99,18 @@ def get_variables_data(variables_file):
     return variables_data
 
 
+def verify_label(label):
+    if not label:
+        return
+    if not re.match(r"^\w+=\w+$", label):
+        log.error("Label '%s' is not valid.  Example: 'mylabel=myvalue'", label)
+        sys.exit(1)
+
+
 @click.group(
     help="Deploys components to a given cluster. NOTE: You need the openshift cli tool"
-         " ('oc') installed and to login to your openshift cluster before running the tool."
-    )
+    " ('oc') installed and to login to your openshift cluster before running the tool."
+)
 def main():
     """Main ocdeployer group"""
     pass
@@ -104,33 +118,86 @@ def main():
 
 @main.command("deploy", help="Deploy to project")
 @click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
-@click.option("--secrets-local-dir", default=os.path.join(os.getcwd(), "secrets"),
-              help="Import secrets from local files in a directory (default ./secrets)")
-@click.option("--sets", "-s",  help="Comma,separated,list of specific service set names to deploy")
-@click.option("--all", "-a", "all_services", is_flag=True, help="Deploy all service sets")
-@click.option("--secrets-src-project", default="secrets",
-              help="Openshift project to import secrets from (default: secrets)")
-@click.option("--env-file", "-e", default="",
-              help="Path to parameters config file (default: None)")
-@click.option("--template-dir", "-t", default=os.path.join(os.getcwd(), "templates"),
-              help="Template directory (default ./templates)")
-@click.option("--ignore-requires", "-i",
-              help="Ignore the 'requires' statement in config files and deploy anyway")
-@click.option("--scale-resources", type=float, default=1.0,
-              help="Factor to scale configured cpu/memory resource requests/limits by")
-@click.option("--custom-dir", "-u", default=os.path.join(os.getcwd(), "custom"),
-              help="Custom deploy scripts directory (default ./custom)")
-@click.option("--pick", "-p", default=None, help="Pick a single component from a service"
-                                                 " set and deploy that.  E.g. '-p myset/myvm'")
+@click.option(
+    "--secrets-local-dir",
+    default=os.path.join(os.getcwd(), "secrets"),
+    help="Import secrets from local files in a directory (default ./secrets)",
+)
+@click.option(
+    "--sets", "-s", help="Comma,separated,list of specific service set names to deploy"
+)
+@click.option(
+    "--all", "-a", "all_services", is_flag=True, help="Deploy all service sets"
+)
+@click.option(
+    "--secrets-src-project",
+    default="secrets",
+    help="Openshift project to import secrets from (default: secrets)",
+)
+@click.option(
+    "--env-file",
+    "-e",
+    default="",
+    help="Path to parameters config file (default: None)",
+)
+@click.option(
+    "--template-dir",
+    "-t",
+    default=os.path.join(os.getcwd(), "templates"),
+    help="Template directory (default ./templates)",
+)
+@click.option(
+    "--ignore-requires",
+    "-i",
+    help="Ignore the 'requires' statement in config files and deploy anyway",
+)
+@click.option(
+    "--scale-resources",
+    type=float,
+    default=1.0,
+    help="Factor to scale configured cpu/memory resource requests/limits by",
+)
+@click.option(
+    "--custom-dir",
+    "-u",
+    default=os.path.join(os.getcwd(), "custom"),
+    help="Custom deploy scripts directory (default ./custom)",
+)
+@click.option(
+    "--pick",
+    "-p",
+    default=None,
+    help="Pick a single component from a service"
+    " set and deploy that.  E.g. '-p myset/myvm'",
+)
+@click.option(
+    "--label",
+    "-l",
+    default=None,
+    help="Adds a label to each deployed resource.  E.g. '-l app=test'",
+)
 @click.argument("dst_project")
 def deploy_to_project(
-    dst_project, no_confirm, secrets_local_dir, sets, all_services, secrets_src_project, env_file,
-    template_dir, ignore_requires, scale_resources, custom_dir, pick
+    dst_project,
+    no_confirm,
+    secrets_local_dir,
+    sets,
+    all_services,
+    secrets_src_project,
+    env_file,
+    template_dir,
+    ignore_requires,
+    scale_resources,
+    custom_dir,
+    pick,
+    label,
 ):
 
     if not dst_project:
         log.error("Error: no destination project given")
         sys.exit(1)
+
+    verify_label(label)
 
     SecretImporter.local_dir = secrets_local_dir
     SecretImporter.source_project = secrets_src_project
@@ -140,7 +207,8 @@ def deploy_to_project(
     if not all_services and not sets and not pick:
         log.error(
             "Error: no service sets or components selected for deploy."
-            " Use --sets, --all, or --pick")
+            " Use --sets, --all, or --pick"
+        )
         sys.exit(1)
 
     specific_component = None
@@ -161,8 +229,8 @@ def deploy_to_project(
         else:
             sets_selected = sets.split(",")
         confirm_msg = "Deploying service sets '{}' to project '{}'.  Continue?".format(
-                ", ".join(sets_selected), dst_project
-            )
+            ", ".join(sets_selected), dst_project
+        )
 
     if not no_confirm and not prompter.yesno(confirm_msg):
         log.info("Aborted by user")
@@ -184,6 +252,7 @@ def deploy_to_project(
         resources_scale_factor=scale_resources,
         custom_dir=custom_dir,
         specific_component=specific_component,
+        label=label,
     ).run()
 
     list_routes(dst_project)
@@ -191,26 +260,45 @@ def deploy_to_project(
 
 @main.command("wipe", help="Delete everything from project")
 @click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
+@click.option(
+    "--label",
+    "-l",
+    default=None,
+    help="Delete only a specific label.  E.g. '-l app=test'",
+)
 @click.argument("dst_project")
-def wipe_project(no_confirm, dst_project):
-    return wipe(no_confirm, dst_project)
+def wipe_project(no_confirm, dst_project, label):
+    verify_label(label)
+    return wipe(no_confirm, dst_project, label)
 
 
 @main.command("list-routes", help="List routes currently in the project")
 @click.argument("dst_project")
-@click.option("--output", "-o", default=None, type=click.Choice(["yaml", "json"]),
-              help="When listing parameters, print output in yaml or json format")
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    type=click.Choice(["yaml", "json"]),
+    help="When listing parameters, print output in yaml or json format",
+)
 def list_act_routes(dst_project, output):
     return list_routes(dst_project, output)
 
 
-@main.command(
-    "list-sets",  help="List service sets available in template dir"
+@main.command("list-sets", help="List service sets available in template dir")
+@click.option(
+    "--template-dir",
+    "-t",
+    default=os.path.join(os.getcwd(), "templates"),
+    help="Template directory (default ./templates)",
 )
-@click.option("--template-dir", "-t", default=os.path.join(os.getcwd(), "templates"),
-              help="Template directory (default ./templates)")
-@click.option("--output", "-o", default=None, type=click.Choice(["yaml", "json"]),
-              help="When listing parameters, print output in yaml or json format")
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    type=click.Choice(["yaml", "json"]),
+    help="When listing parameters, print output in yaml or json format",
+)
 def list_act_sets(template_dir, output):
     return list_sets(template_dir, output)
 

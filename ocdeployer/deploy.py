@@ -156,6 +156,7 @@ class DeployRunner(object):
         resources_scale_factor,
         custom_dir,
         specific_component=None,
+        label=None,
     ):
         self.template_dir = template_dir
         self.custom_dir = custom_dir
@@ -166,6 +167,7 @@ class DeployRunner(object):
         self.resources_scale_factor = resources_scale_factor
         self._deployed_service_sets = []
         self.specific_component = specific_component
+        self.label = label
 
     def _get_variables(self, service_set, component):
         """
