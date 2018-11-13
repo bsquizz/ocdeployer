@@ -20,7 +20,7 @@ log = logging.getLogger("ocdeployer")
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("sh").setLevel(logging.CRITICAL)
 
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 def wipe(no_confirm, project, label):
@@ -29,7 +29,9 @@ def wipe(no_confirm, project, label):
         extra_msg = " with label '{}'".format(label)
 
     if not no_confirm and prompter.yesno(
-        "I'm about to delete everything in project '{}'{}.  Continue?".format(project, extra_msg),
+        "I'm about to delete everything in project '{}'{}.  Continue?".format(
+            project, extra_msg
+        ),
         default="no",
     ):
         sys.exit(0)
@@ -117,7 +119,7 @@ def verify_label(label):
 @click.group(
     help="Deploys components to a given cluster. NOTE: You need the openshift cli tool"
     " ('oc') installed and to login to your openshift cluster before running the tool.",
-    context_settings=CONTEXT_SETTINGS
+    context_settings=CONTEXT_SETTINGS,
 )
 def main():
     """Main ocdeployer group"""
