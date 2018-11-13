@@ -23,6 +23,7 @@ def deploy_components(
     wait=True,
     timeout=300,
     resources_scale_factor=1.0,
+    label=None,
 ):
     """
     Deploy a collection of components in a service-set to a project
@@ -47,6 +48,7 @@ def deploy_components(
         wait (boolean) -- wait for all deploymentConfigurations to be 'ready'
         timeout (int) -- timeout to wait for all deploymentConfigurations to be 'ready'
         resources_scale_factor (float) -- factor to scale cpu/memory resource requests/limits by
+        label (str) -- Label to apply to all deployed resources
 
     Returns:
         The templates we used to deploy this service set, in the same dict format as
@@ -66,7 +68,7 @@ def deploy_components(
 
         template = templates_by_name.get(comp_name)
         template.process(
-            variables_per_component.get(comp_name, {}), resources_scale_factor
+            variables_per_component.get(comp_name, {}), resources_scale_factor, label
         )
         log.info("Deploying component '{}'".format(comp_name))
         oc("apply", "-f", "-", "-n", project_name, _in=template.dump_processed_json())
@@ -156,6 +158,7 @@ class DeployRunner(object):
         resources_scale_factor,
         custom_dir,
         specific_component=None,
+        label=None,
     ):
         self.template_dir = template_dir
         self.custom_dir = custom_dir
@@ -166,6 +169,7 @@ class DeployRunner(object):
         self.resources_scale_factor = resources_scale_factor
         self._deployed_service_sets = []
         self.specific_component = specific_component
+        self.label = label
 
     def _get_variables(self, service_set, component):
         """
@@ -288,6 +292,7 @@ class DeployRunner(object):
                 wait=deploy_order[stage].get("wait", True) is True,
                 timeout=deploy_order[stage].get("timeout", 300),
                 resources_scale_factor=self.resources_scale_factor,
+                label=self.label,
             )
             processed_templates.update(processed_templates_this_stage)
 
