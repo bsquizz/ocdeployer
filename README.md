@@ -23,10 +23,16 @@ You should log in to your project before deploying:
 # Getting Started
 
 ## Installation and usage
+
+#### Installation
 ```
 $ python3 -m venv .venv
 $ . .venv/bin/activate
 (venv) $ pip install -r requirements.txt
+```
+
+#### Command options
+```
 (venv) $ ocdeployer -h
 Usage: ocdeployer [OPTIONS] COMMAND [ARGS]...
 
@@ -42,9 +48,11 @@ Commands:
   list-routes  List routes currently in the project
   list-sets    List service sets available in template dir
   wipe         Delete everything from project
+```
 
-Deploy Tool
-
+#### Deploy command options
+```
+(venv) $ ocdeployer deploy -h
 Usage: ocdeployer deploy [OPTIONS] DST_PROJECT
 
   Deploy to project
@@ -68,43 +76,23 @@ Options:
                               ./custom)
   -p, --pick TEXT             Pick a single component from a service set and
                               deploy that.  E.g. '-p myset/myvm'
-  --help                      Show this message and exit.
+  -l, --label TEXT            Adds a label to each deployed resource.  E.g.
+                              '-l app=test'
+  -h, --help                  Show this message and exit.
+```
 
-
-Wipe Tool
-
+#### Wipe command options
+```
+(venv) $ ocdeployer wipe -h       
 Usage: ocdeployer wipe [OPTIONS] DST_PROJECT
 
   Delete everything from project
 
 Options:
   -f, --no-confirm  Do not prompt for confirmation
-  --help            Show this message and exit.
-
-
-List Services Tool
-
-Usage: ocdeployer list-sets [OPTIONS]
-
-  List service sets available in template dir
-
-Options:
-  -t, --template-dir TEXT   Template directory (default ./templates)
-  -o, --output [yaml|json]  When listing parameters, print output in yaml or
-                            json format
-  --help                    Show this message and exit.
-
-
-List Routes Tool
-
-Usage: ocdeployer list-routes [OPTIONS] DST_PROJECT
-
-  List routes currently in the project
-
-Options:
-  -o, --output [yaml|json]  When listing parameters, print output in yaml or
-                            json format
-  --help                    Show this message and exit.
+  -l, --label TEXT  Delete only a specific label.  E.g. '-l app=test'
+  -h, --help        Show this message and exit.
+```
 
 
 ## Details
@@ -184,7 +172,7 @@ The best way to explain how template configuration works is to describe the proc
 
 5. Add your service folder name to the base `_cfg.yml` in the `templates` directory. Remember that the `deploy_order` specifies the order in which each service set is deployed. So if your service set depends upon other services being deployed first, order it appropriately!
 
-6. Run `ocdeployer -l` and you should see your new component listed as a deployable service set.
+6. Run `ocdeployer list-sets` and you should see your new component listed as a deployable service set.
 
 
 ### Custom Deploy Logic
@@ -192,7 +180,7 @@ If you set `custom_deploy_logic` to True, you should then create a custom deploy
 
 ```python
 def pre_deploy(project_name, template_dir, variables_for_component):
-def deploy(project_name, template_dir, components, variables_for_component, wait, timeout, resources_scale_factor):
+def deploy(project_name, template_dir, components, variables_for_component, wait, timeout, resources_scale_factor, label):
 def post_deploy(processed_templates, project_name, template_dir, variables_for_component):
 ```
 
@@ -235,7 +223,7 @@ $ oc export secret mysecret -o yaml > /tmp/secrets/mysecret.yaml
 To use the secrets files in your next project deploy:
 ```
 (venv) $ oc login https://my.openshift --token=*************
-(venv) $ ocdeployer -a --secrets-local-dir /tmp/secrets/ myproject
+(venv) $ ocdeployer deploy -a --secrets-local-dir /tmp/secrets/ myproject
 ```
 
 ## Environment file
@@ -263,25 +251,25 @@ but not necessarily have to define each variable as a parameter in every single 
 
 Select your environment file at runtime with the `-e` or `--env-file` command-line option, e.g.:
 ```
-(venv) $ ocdeployer -s myset -e my_env_file.yml myproject
+(venv) $ ocdeployer deploy -s myset -e my_env_file.yml myproject
 ```
 
 ## Common usage
 
 List the service sets available for you to deploy:
 ```
-(venv) $ ocdeployer -l
+(venv) $ ocdeployer list-sets
 Available service sets: ['platform', 'advisor', 'engine', 'vulnerability']
 ```
 
 Example to deploy platform, engine, and import secrets from "mysecretsproject":
 ```
-(venv) $ ocdeployer -s platform,engine --secrets-src mysecretsproject mynewproject
+(venv) $ ocdeployer deploy -s platform,engine --secrets-src mysecretsproject mynewproject
 ```
 
 You can scale the cpu/memory requests/limits for all your resources using the `--scale-resources` flag:
 ```
-(venv) $ ocdeployer -s platform --scale-resources 0.5 mynewproject
+(venv) $ ocdeployer deploy -s platform --scale-resources 0.5 mynewproject
 ```
 This will multiply any configured resource requests/limits in your template by the desired factor. If
 you haven't configured a request/limit, it will not be scaled. If you scale by `0`, the resource
@@ -291,9 +279,14 @@ ranges to kick in.
 
 Delete everything (and that means pretty much everything, so be careful) from your project with:
 ```
-(venv) $ ocdeployer --wipe <openshift project name>
+(venv) $ ocdeployer wipe <openshift project name>
+```
+
+You can also delete everything matching a specific label:
+```
+(venv) $ ocdeployer wipe -l mylabel=myvalue <openshift project name>
 ```
 
 ## Known issues/needed improvements
-* Currently the scripts have no way to alter the templates (other than via oc process). We may switch to a more thorough templating system in future.
+* Currently the scripts have no way to alter the templates other than via `oc process`. We may switch to a more thorough templating system in future.
 * The scripts currently check to ensure deployments have moved to 'active' before exiting, however, they do not remediate any "hanging" or "stuck" builds/deployments. Work on that will be coming soon...

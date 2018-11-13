@@ -123,15 +123,15 @@ Now, we can do the following:
 
 Deploy only set1 to project 'myproject' using QA env settings
 
-`$ ocdeployer -s set1 -e qa-env.yml myproject`
+`$ ocdeployer deploy -s set1 -e qa-env.yml myproject`
 
 Deploy all service sets to project 'myproject' using production env settings
 
-`$ ocdeployer -a -e prod-env.yml myproject`
+`$ ocdeployer deploy -a -e prod-env.yml myproject`
 
 If we had more sets, you could deploy only set1 and set2 with the below command. Note that even though we have listed `set2` first, it will still get deployed in the order the service sets are listed in `_cfg.yml`
 
-`$ ocdeployer -s set2,set1 -e prod-env.yml myrpoject`
+`$ ocdeployer deploy -s set2,set1 -e prod-env.yml myrpoject`
 
 ## High-level steps of the deploy process
 
