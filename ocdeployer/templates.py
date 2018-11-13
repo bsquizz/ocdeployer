@@ -205,8 +205,7 @@ class Template(object):
         if label:
             extra_args.extend(["-l", label])
 
-        output = oc("process", "-f", self.path, "-o", "json", *extra_args)
-        #, _silent=True)
+        output = oc("process", "-f", self.path, "-o", "json", *extra_args, _silent=True)
 
         self.processed_content = json.loads(str(output))
 
