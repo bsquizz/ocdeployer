@@ -158,7 +158,7 @@ class Template(object):
 
         return content
 
-    def process(self, variables, resources_scale_factor=1.0):
+    def process(self, variables, resources_scale_factor=1.0, label=None):
         """
         Run 'oc process' on the template and update content with the processed output
 
@@ -171,6 +171,7 @@ class Template(object):
             variables -- dict with key variable name/variable value for this template
             resources_scale_factor (float) -- scale any defined resource requests/limits by
                  this number (i.e., multiple their current values by this number)
+            label (str) -- label to apply to all resources
         """
         # Create set of param strings to pass into 'oc process'
         vars_and_vals = {}
@@ -183,15 +184,15 @@ class Template(object):
             ", ".join([string for _, string in vars_and_vals.items()]),
         )
 
+        extra_args = []
         # Only insert the parameter if it was defined in the template
-        param_args = []
         param_names = [
             param.get("name") for param in self.content.get("parameters", [])
         ]
         skipped_vars = []
         for var_name, string in vars_and_vals.items():
             if var_name in param_names:
-                param_args.extend(["-p", string])
+                extra_args.extend(["-p", string])
             else:
                 skipped_vars.append(var_name)
 
@@ -201,7 +202,11 @@ class Template(object):
                 ", ".join(skipped_vars),
             )
 
-        output = oc("process", "-f", self.path, "-o", "json", *param_args, _silent=True)
+        if label:
+            extra_args.extend(["-l", label])
+
+        output = oc("process", "-f", self.path, "-o", "json", *extra_args)
+        #, _silent=True)
 
         self.processed_content = json.loads(str(output))
 

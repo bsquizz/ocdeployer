@@ -20,24 +20,31 @@ log = logging.getLogger("ocdeployer")
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("sh").setLevel(logging.CRITICAL)
 
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
 
 def wipe(no_confirm, project, label):
+    extra_msg = ""
+    if label:
+        extra_msg = " with label '{}'".format(label)
+
     if not no_confirm and prompter.yesno(
-        "I'm about to delete everything in project '{}'.  Continue?".format(project),
+        "I'm about to delete everything in project '{}'{}.  Continue?".format(project, extra_msg),
         default="no",
     ):
         sys.exit(0)
 
     switch_to_project(project)
 
-    kwargs = {"_exit_on_err": False}
     if label:
-        kwargs["selector"] = label
+        args = ["--selector", label]
+    else:
+        args = ["--all"]
 
-    oc("delete", "all", "--all", **kwargs)
-    oc("delete", "configmap", "--all", **kwargs)
-    oc("delete", "secret", "--all", **kwargs)
-    oc("delete", "pvc", "--all", **kwargs)
+    oc("delete", "all", *args, _exit_on_err=False)
+    oc("delete", "configmap", *args, _exit_on_err=False)
+    oc("delete", "secret", *args, _exit_on_err=False)
+    oc("delete", "pvc", *args, _exit_on_err=False)
 
 
 def list_routes(project, output=None):
@@ -109,7 +116,8 @@ def verify_label(label):
 
 @click.group(
     help="Deploys components to a given cluster. NOTE: You need the openshift cli tool"
-    " ('oc') installed and to login to your openshift cluster before running the tool."
+    " ('oc') installed and to login to your openshift cluster before running the tool.",
+    context_settings=CONTEXT_SETTINGS
 )
 def main():
     """Main ocdeployer group"""
