@@ -1,4 +1,5 @@
 PyYAML
 sh
 prompter
+click
 -e .
