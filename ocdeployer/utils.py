@@ -312,6 +312,7 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
     _result_dict[key] = False
 
     log.info("Waiting up to %dsec for '%s' to complete", timeout, key)
+
     def _complete():
         j = get_json(restype, name)
         if _check_status_for_restype(restype, j):
@@ -412,21 +413,25 @@ def stop_deployment(dc_name):
             pass
 
     log.info("Removing replication controllers for '%s'", dc_name)
-    rc_data = get_json("rc", label="openshift.io/deployment-config.name={}".format(dc_name))
+    rc_data = get_json(
+        "rc", label="openshift.io/deployment-config.name={}".format(dc_name)
+    )
     if not rc_data or not len(rc_data.get("items", [])):
-        raise Exception("Unable to find replication controllers for '{}'".format(dc_name))
-    for rc in rc_data['items']:
-        rc_name = rc['metadata']['name']
+        raise Exception(
+            "Unable to find replication controllers for '{}'".format(dc_name)
+        )
+    for rc in rc_data["items"]:
+        rc_name = rc["metadata"]["name"]
         oc("delete", "rc", rc_name)
 
     log.info("Waiting for pods related to '%s' to terminate", dc_name)
     wait_for(
         any_pods_running,
-        func_args = (dc_name,),
+        func_args=(dc_name,),
         message="wait for deployment '{}' to be terminated".format(dc_name),
         timeout=180,
         delay=5,
-        log_on_loop=True
+        log_on_loop=True,
     )
 
 
@@ -438,7 +443,8 @@ def dc_ready(dc_name):
 def start_deployment(dc_name):
     if dc_ready(dc_name):
         log.info(
-            "Deployment '%s' already deployed and running, skipping deploy for it", dc_name
+            "Deployment '%s' already deployed and running, skipping deploy for it",
+            dc_name,
         )
         return
 
@@ -463,5 +469,5 @@ def start_deployment(dc_name):
         message="wait for deployment '{}' to be ready".format(dc_name),
         delay=5,
         timeout=180,
-        log_on_loop=True
+        log_on_loop=True,
     )
