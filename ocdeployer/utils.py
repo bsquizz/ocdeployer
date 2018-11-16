@@ -11,7 +11,7 @@ import yaml
 
 import sh
 from sh import ErrorReturnCode
-
+from wait_for import wait_for, TimedOutError
 
 log = logging.getLogger(__name__)
 
@@ -176,17 +176,21 @@ def switch_to_project(project):
     oc("project", project, _exit_on_err=True)
 
 
-def get_json(restype, name=None):
+def get_json(restype, name=None, label=None):
     """
-    Run 'oc get' for a given resource type/name and return the json output.
+    Run 'oc get' for a given resource type/name/label and return the json output.
 
     If name is None all resources of this type are returned
+
+    If label is not provided, then "oc get" will not be filtered on label
     """
     restype = parse_restype(restype)
 
-    args = ("get", restype)
+    args = ["get", restype]
     if name:
-        args = ("get", restype, name)
+        args.append(name)
+    if label:
+        args.extend(["-l", label])
     try:
         output = oc(*args, o="json", _exit_on_err=False, _silent=True)
     except ErrorReturnCode as err:
@@ -265,6 +269,10 @@ def _check_status_for_restype(restype, json_data):
         if ready_replicas == spec_replicas and updated_replicas == spec_replicas:
             return True
 
+    elif restype == "pod":
+        if status.get("phase") == "Running":
+            return True
+
     elif restype == "build":
         if status.get("phase") == "Complete":
             return True
@@ -304,25 +312,26 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
     _result_dict[key] = False
 
     log.info("Waiting up to %dsec for '%s' to complete", timeout, key)
-    while True:
-        log.info("Checking if '%s' is complete...", key)
-
+    def _complete():
         j = get_json(restype, name)
-
         if _check_status_for_restype(restype, j):
             _result_dict[key] = True
             log.info("'%s' is ready!", key)
-            return True  # done, return True
+            return True
 
-        if time.time() > timeout_time:
-            break
-        time.sleep(5)
-
-    # if we get here, we timed out
-    log.info("Timed out waiting for '%s' after %d sec", key, timeout)
-    if exit_on_err:
-        sys.exit(1)
-    return False
+    try:
+        wait_for(
+            _complete,
+            timeout=timeout,
+            delay=5,
+            message="wait for '{}' to complete".format(key),
+            log_on_loop=True,
+        )
+        return True
+    except TimedOutError:
+        if exit_on_err:
+            sys.exit(1)
+        return False
 
 
 def wait_for_ready_threaded(restype_name_list, timeout=300, exit_on_err=False):
@@ -358,3 +367,101 @@ def wait_for_ready_threaded(restype_name_list, timeout=300, exit_on_err=False):
             sys.exit(1)
         return False
     return True
+
+
+def any_pods_running(dc_name):
+    """
+    Return true if any pods are running in the deployment config
+    """
+    pod_data = get_json("pod", label="deploymentconfig={}".format(dc_name))
+    if not pod_data or not len(pod_data.get("items", [])):
+        log.info("No pods found for {}".format(dc_name))
+        return False
+    for pod in pod_data["items"]:
+        if _check_status_for_restype("pod", pod):
+            return True
+    return False
+
+
+def all_pods_running(dc_name):
+    """
+    Return true if all pods are running in the deployment config
+    """
+    pod_data = get_json("pod", label="deploymentconfig={}".format(dc_name))
+    if not pod_data or not len(pod_data.get("items", [])):
+        log.info("No pods found for {}".format(dc_name))
+        return False
+    statuses = []
+    for pod in pod_data["items"]:
+        statuses.append(_check_status_for_restype("pod", pod))
+    return len(statuses) and all(statuses)
+
+
+def stop_deployment(dc_name):
+    """
+    Pause a deployment, delete all of its replication controllers, wait for all pods to shut down
+    """
+    if not any_pods_running(dc_name):
+        log.info("No pods running for dc '{}', nothing to stop".format(dc_name))
+
+    log.info("Patching deployment config for '%s' to pause rollouts", dc_name)
+    try:
+        oc("rollout", "pause", "dc/{}".format(dc_name), _reraise=True)
+    except sh.ErrorReturnCode as err:
+        if "is already paused" in str(err.stderr):
+            pass
+
+    log.info("Removing replication controllers for '%s'", dc_name)
+    rc_data = get_json("rc", label="openshift.io/deployment-config.name={}".format(dc_name))
+    if not rc_data or not len(rc_data.get("items", [])):
+        raise Exception("Unable to find replication controllers for '{}'".format(dc_name))
+    for rc in rc_data['items']:
+        rc_name = rc['metadata']['name']
+        oc("delete", "rc", rc_name)
+
+    log.info("Waiting for pods related to '%s' to terminate", dc_name)
+    wait_for(
+        any_pods_running,
+        func_args = (dc_name,),
+        message="wait for deployment '{}' to be terminated".format(dc_name),
+        timeout=180,
+        delay=5,
+        log_on_loop=True
+    )
+
+
+def dc_ready(dc_name):
+    dc_json = get_json("dc", dc_name)
+    return _check_status_for_restype("dc", dc_json) and all_pods_running(dc_name)
+
+
+def start_deployment(dc_name):
+    if dc_ready(dc_name):
+        log.info(
+            "Deployment '%s' already deployed and running, skipping deploy for it", dc_name
+        )
+        return
+
+    log.info("Patching deployment config for '%s' to resume rollouts", dc_name)
+    try:
+        oc("rollout", "resume", "dc/{}".format(dc_name), _reraise=True)
+    except sh.ErrorReturnCode as err:
+        if "is not paused" in str(err.stderr):
+            pass
+
+    log.info("Triggering new deploy for '%s'", dc_name)
+    try:
+        oc("rollout", "latest", "dc/{}".format(dc_name), _reraise=True)
+    except sh.ErrorReturnCode as err:
+        if "already in progress" in str(err.stderr):
+            pass
+
+    log.info("Waiting for pod related to '%s' to finish deploying", dc_name)
+    wait_for(
+        dc_ready,
+        func_args=(dc_name,),
+        message="wait for deployment '{}' to be ready".format(dc_name),
+        delay=5,
+        timeout=180,
+        log_on_loop=True
+    )
