@@ -398,6 +398,13 @@ def all_pods_running(dc_name):
     return len(statuses) and all(statuses)
 
 
+def no_pods_running(dc_name):
+    """
+    Return true if there are no pods running in the deployment
+    """
+    return not all_pods_running(dc_name)
+
+
 def stop_deployment(dc_name):
     """
     Pause a deployment, delete all of its replication controllers, wait for all pods to shut down
@@ -426,7 +433,7 @@ def stop_deployment(dc_name):
 
     log.info("Waiting for pods related to '%s' to terminate", dc_name)
     wait_for(
-        any_pods_running,
+        no_pods_running,
         func_args=(dc_name,),
         message="wait for deployment '{}' to be terminated".format(dc_name),
         timeout=180,
