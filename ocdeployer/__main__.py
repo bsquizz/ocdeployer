@@ -159,6 +159,7 @@ def main():
 @click.option(
     "--ignore-requires",
     "-i",
+    is_flag=True,
     help="Ignore the 'requires' statement in config files and deploy anyway",
 )
 @click.option(
