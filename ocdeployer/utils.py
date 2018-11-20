@@ -305,8 +305,6 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
     to store the result of this wait as:
         _result_dict[resource_name] = True or False
     """
-    timeout_time = time.time() + timeout
-
     key = "{}/{}".format(restype, name)
 
     if _result_dict is None:
