@@ -319,6 +319,7 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
             _result_dict[key] = True
             log.info("'%s' is ready!", key)
             return True
+        return False
 
     try:
         wait_for(
@@ -330,6 +331,7 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
         )
         return True
     except TimedOutError:
+        log.exception("timed out")
         if exit_on_err:
             sys.exit(1)
         return False
