@@ -2,5 +2,6 @@ PyYAML
 sh
 prompter
 click
+appdirs
 wait_for
 -e .

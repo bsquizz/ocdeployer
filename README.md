@@ -44,6 +44,7 @@ Options:
   --help  Show this message and exit.
 
 Commands:
+  cache        Used for updating or deleting local template cache
   deploy       Deploy to project
   list-routes  List routes currently in the project
   list-sets    List service sets available in template dir
@@ -94,15 +95,49 @@ Options:
   -h, --help        Show this message and exit.
 ```
 
+#### Cache command
+'''
+(venv) $ ocdeployer cache -h
+Usage: ocdeployer cache [OPTIONS] COMMAND [ARGS]...
+
+  Used for updating or deleting local template cache
+
+Options:
+  -h, --help  Show this message and exit.
+
+Commands:
+  delete      Delete current template cache
+  initialize  Fetch new template cache
+  update      Update template cache files
+
+Commands Usage: ocdeployer cache delete/initialize/update
+ [OPTIONS]
+
+Options:
+  -i, --install-dir TEXT  Location to store cached templates and configs
+  -h, --help              Show this message and exit.
+
+'''
 
 ## Details
 `ocdeployer` relies on 4 pieces of information:
-* A templates directory (default: `./templates`) -- this houses your OpenShift YAML/JSON templates as well as special config files (named `_cfg.yml`). You can split your templates into folders, called `service sets`, and define a `_cfg.yml` inside each of these folders which takes care of deploying that specific service set. The base `_cfg.yml` defines the deploy order for all service sets, as well as any "global" secrets/images that should be imported that all services rely on.
-* A custom scripts directory (default: `./custom`). This is optional. Python scripts can be placed in here which can be run at pre-deploy/deploy/post-deploy stages for specific service sets.
-* A secrets directory (default: `./secrets`). This is optional. Openshift YAML files containing a secret or list of secrets can be placed in here. Service sets which require imported secrets can use the secrets in this directory.
+* A templates directory (default: ./templates) -- this houses your OpenShift YAML/JSON templates as well as special config files (named _cfg.yml). You can split your templates into folders, called service sets, and define a _cfg.yml inside each of these folders which takes care of deploying that specific service set. The base _cfg.yml defines the deploy order for all service sets, as well as any "global" secrets/images that should be imported that all services rely on.
+* A custom scripts directory (default: ./custom). This is optional. Python scripts can be placed in here which can be run at pre-deploy/deploy/post-deploy stages for specific service sets.
+* A secrets directory (default: ./secrets). This is optional. Openshift YAML files containing a secret or list of secrets can be placed in here. Service sets which require imported secrets can use the secrets in this directory.
 * An environment file. This is optional. Defines parameters that should be passed to the templates.
 
+If you use ocdeployer cache initialize then these defaults change to the following:
+* Linux: `/home/<username>/.cache/ocdeployer/templates`, Mac: '/Users/USERNAME/Library/Application Support/ocdeployer/templates'
+* Linux: `/home/<username>/.cache/ocdeployer/custom`, Mac: '/Users/USERNAME/Library/Application Support/ocdeployer/custom'
+* Linux: `/home/<username>/.cache/ocdeployer/secrets`, Mac: '/Users/USERNAME/Library/Application Support/ocdeployer/secrets'
+
 See the [examples](example/README.md) to get a better idea of how all of this configuration comes together.
+
+### Cache
+
+This is used for creating a local cache of e2e-deploy for quick access to templates and scripts.
+Its also possible to update an existing cache or remove it.
+
 
 ### Template Configuration
 

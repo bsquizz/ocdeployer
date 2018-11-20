@@ -1,12 +1,16 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
+import appdirs
 import click
 import logging
 import os
+import pathlib
 import json
+import subprocess
 import sys
 import re
+import shutil
 
 import prompter
 import yaml
@@ -19,6 +23,7 @@ from ocdeployer.deploy import DeployRunner
 log = logging.getLogger("ocdeployer")
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("sh").setLevel(logging.CRITICAL)
+appdirs_path = pathlib.Path(appdirs.user_cache_dir(appname="ocdeployer"))
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -130,8 +135,8 @@ def main():
 @click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
 @click.option(
     "--secrets-local-dir",
-    default=os.path.join(os.getcwd(), "secrets"),
-    help="Import secrets from local files in a directory (default ./secrets)",
+    default=None,
+    help="Import secrets from local files in a directory (default 'appdirs'/secrets)",
 )
 @click.option(
     "--sets", "-s", help="Comma,separated,list of specific service set names to deploy"
@@ -153,7 +158,7 @@ def main():
 @click.option(
     "--template-dir",
     "-t",
-    default=os.path.join(os.getcwd(), "templates"),
+    default=None,
     help="Template directory (default ./templates)",
 )
 @click.option(
@@ -171,8 +176,8 @@ def main():
 @click.option(
     "--custom-dir",
     "-u",
-    default=os.path.join(os.getcwd(), "custom"),
-    help="Custom deploy scripts directory (default ./custom)",
+    default=None,
+    help="Custom deploy scripts directory (default 'appdirs'/custom)",
 )
 @click.option(
     "--pick",
@@ -203,6 +208,17 @@ def deploy_to_project(
     pick,
     label,
 ):
+    if not template_dir:
+        path = appdirs_path / "templates"
+        template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / 'templates'
+
+    if not custom_dir:
+        path = appdirs_path / "custom"
+        custom_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / 'custom'
+
+    if not secrets_local_dir:
+        path = appdirs_path / "secrets"
+        secrets_local_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / 'secrets'
 
     if not dst_project:
         log.error("Error: no destination project given")
@@ -300,8 +316,8 @@ def list_act_routes(dst_project, output):
 @click.option(
     "--template-dir",
     "-t",
-    default=os.path.join(os.getcwd(), "templates"),
-    help="Template directory (default ./templates)",
+    default=appdirs_path / "templates",
+    help="Template directory (default 'appdirs'/templates)",
 )
 @click.option(
     "--output",
@@ -312,6 +328,49 @@ def list_act_routes(dst_project, output):
 )
 def list_act_sets(template_dir, output):
     return list_sets(template_dir, output)
+
+
+@main.group('cache')
+def cache():
+    """Used for updating or deleting local template cache"""
+    pass
+
+
+@cache.command("initialize", help="Fetch new template cache")
+@click.option("--install-dir", "-i", default=appdirs_path,
+              help="Location to store cached templates and configs")
+@click.argument("url")
+def initialize_cache(install_dir, url):
+    if not install_dir.exists():
+        proc = subprocess.Popen(["git", "clone", url, str(install_dir)])
+        proc.wait()
+    else:
+        print(f"{install_dir} already exists, use --update to update files"
+              f" or --delete to clear current cache")
+
+
+@cache.command("update", help="Update template cache files")
+@click.option("--install-dir", "-i", default=appdirs_path,
+              help="Location to store cached templates and configs")
+def update_cache(install_dir):
+    my_env = os.environ.copy()
+    my_env["GIT_WORK_TREE"] = str(install_dir)
+    git_dir = install_dir / ".git"
+
+    args = ["git", "--git-dir", str(git_dir), "pull", "origin", "master"]
+    proc = subprocess.Popen(args, env=my_env)
+    proc.wait()
+
+
+@cache.command("delete", help="Delete current template cache")
+@click.option("--install-dir", "-i", default=appdirs_path,
+              help="Location to store cached templates and configs")
+def delete_cache(install_dir):
+    if not install_dir.exists():
+        print(f"{install_dir} already deleted please use initialize to create new cache")
+    else:
+        click.confirm(f'Are you sure you want to delete {install_dir}?', abort=True)
+        shutil.rmtree(install_dir)
 
 
 if __name__ == "__main__":
