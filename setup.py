@@ -17,7 +17,7 @@ setup(
     keywords=["openshift", "kubernetes"],
     setup_requires=["setuptools_scm"],
     include_package_data=True,
-    install_requires=["sh", "prompter", "pyyaml", "click"],
+    install_requires=["sh", "prompter", "pyyaml", "click", "appdirs", "wait_for"],
     classifiers=[
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
