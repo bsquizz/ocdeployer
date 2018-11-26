@@ -17,6 +17,7 @@ same templates to different environments
 **REQUIRES** OpenShift command line tools (the `oc` command)
 
 You should log in to your project before deploying:
+
 `$ oc login https://api.myopenshift --token=*************`
 
 
@@ -95,8 +96,8 @@ Options:
   -h, --help        Show this message and exit.
 ```
 
-#### Cache command
-'''
+#### Cache command options
+```
 (venv) $ ocdeployer cache -h
 Usage: ocdeployer cache [OPTIONS] COMMAND [ARGS]...
 
@@ -116,8 +117,7 @@ Commands Usage: ocdeployer cache delete/initialize/update
 Options:
   -i, --install-dir TEXT  Location to store cached templates and configs
   -h, --help              Show this message and exit.
-
-'''
+```
 
 ## Details
 `ocdeployer` relies on 4 pieces of information:
@@ -126,17 +126,27 @@ Options:
 * A secrets directory (default: ./secrets). This is optional. Openshift YAML files containing a secret or list of secrets can be placed in here. Service sets which require imported secrets can use the secrets in this directory.
 * An environment file. This is optional. Defines parameters that should be passed to the templates.
 
-If you use ocdeployer cache initialize then these defaults change to the following:
-* Linux: `/home/<username>/.cache/ocdeployer/templates`, Mac: '/Users/USERNAME/Library/Application Support/ocdeployer/templates'
-* Linux: `/home/<username>/.cache/ocdeployer/custom`, Mac: '/Users/USERNAME/Library/Application Support/ocdeployer/custom'
-* Linux: `/home/<username>/.cache/ocdeployer/secrets`, Mac: '/Users/USERNAME/Library/Application Support/ocdeployer/secrets'
-
 See the [examples](example/README.md) to get a better idea of how all of this configuration comes together.
 
-### Cache
 
-This is used for creating a local cache of e2e-deploy for quick access to templates and scripts.
-Its also possible to update an existing cache or remove it.
+### Template cache
+
+The `cache` command provides a shortcut method to store a git repository of templates in your local application cache folder. If the cache has been initialized and the folder exists, `ocdeployer` uses this folder as its default location instead of the current working directory.
+
+The implementation uses the `appdirs` cache folder, therefore...
+
+* the default templates dir becomes:
+  - Linux: `/home/<username>/.cache/ocdeployer/templates`
+  - Mac: `/Users/USERNAME/Library/Application Support/ocdeployer/templates`
+* the default scripts dir becomes:
+  - Linux: `/home/<username>/.cache/ocdeployer/custom`
+  - Mac: `/Users/USERNAME/Library/Application Support/ocdeployer/custom`
+* the default secrets dir becomes:
+  - Linux: `/home/<username>/.cache/ocdeployer/secrets`
+  - Mac: `/Users/USERNAME/Library/Application Support/ocdeployer/secrets`
+
+
+Note these defaults are only used IF the cache directory for `ocdeployer` is present.
 
 
 ### Template Configuration
