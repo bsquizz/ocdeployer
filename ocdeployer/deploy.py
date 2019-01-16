@@ -159,6 +159,7 @@ class DeployRunner(object):
         custom_dir,
         specific_component=None,
         label=None,
+        skip=None,
     ):
         self.template_dir = template_dir
         self.custom_dir = custom_dir
@@ -170,6 +171,7 @@ class DeployRunner(object):
         self._deployed_service_sets = []
         self.specific_component = specific_component
         self.label = label
+        self.skip = skip
 
     def _get_variables(self, service_set, component):
         """
@@ -271,6 +273,14 @@ class DeployRunner(object):
                 components = [self.specific_component]
             else:
                 components = deploy_order[stage].get("components", [])
+
+            # If a component has been skipped, remove it from our component list
+            if self.skip:
+                for entry in self.skip:
+                    entry_service_set, entry_component = entry.split("/")
+                    if entry_service_set == service_set and entry_component in components:
+                        log.info("SKIPPING deploy for component: %s", entry_component)
+                        components.remove(entry_component)
 
             # Make sure all the component names have a template
             templates_found = get_templates_in_dir(dir_path)

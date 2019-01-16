@@ -145,6 +145,9 @@ def main():
     "--all", "-a", "all_services", is_flag=True, help="Deploy all service sets"
 )
 @click.option(
+    "--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"
+)
+@click.option(
     "--secrets-src-project",
     default="secrets",
     help="Openshift project to import secrets from (default: secrets)",
@@ -207,6 +210,7 @@ def deploy_to_project(
     custom_dir,
     pick,
     label,
+    skip,
 ):
     if not template_dir:
         path = appdirs_path / "templates"
@@ -280,6 +284,7 @@ def deploy_to_project(
         custom_dir=custom_dir,
         specific_component=specific_component,
         label=label,
+        skip=skip.split(","),
     ).run()
 
     list_routes(dst_project)
