@@ -284,7 +284,7 @@ def deploy_to_project(
         custom_dir=custom_dir,
         specific_component=specific_component,
         label=label,
-        skip=skip.split(","),
+        skip=skip.split(",") if skip else None,
     ).run()
 
     list_routes(dst_project)
