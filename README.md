@@ -174,7 +174,13 @@ The best way to explain how template configuration works is to describe the proc
 
     # Indicates that there is a pre_deploy/post_deploy/deploy method defined for this
     # service set that should be used
-    custom_deploy_logic: True
+    custom_deploy_logic: true
+
+    # Indicates that any BuildConfigs deployed in these templates should be triggered
+    # in post-deploy. This is useful since there is no ConfigChange trigger which
+    # re-builds an existing BuildConfig. That that if custom_deploy_logic above is
+    # 'true', then the post-deploy logic that runs this step will be overriden
+    trigger_builds: false
 
     images:
     # Lists the images these services require

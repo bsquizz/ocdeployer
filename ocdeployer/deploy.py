@@ -89,6 +89,20 @@ def deploy_components(
 DEFAULT_DEPLOY_METHODS = (None, deploy_components, None)
 
 
+def post_deploy_trigger_builds(
+    processed_templates,
+    project_name,
+    template_dir,
+    variables_per_component
+):
+    for _, template in processed_templates.items():
+        builds = template.get_processed_names_for_restype("bc")
+        for build in builds:
+            log.info("Re-triggering builds for '{}'".format(build))
+            oc("cancel-build", "bc/{}".format(build), state="pending,new,running")
+            oc("start-build", "bc/{}".format(build))
+
+
 def _handle_secrets_and_imgs(config):
     # Import the specified secrets
     for secret_name in config.get("secrets", []):
@@ -142,6 +156,9 @@ def _get_deploy_methods(config, service_set_name, custom_dir):
         pre_deploy_method, deploy_method, post_deploy_method = _get_custom_methods(
             service_set_name, custom_dir
         )
+    elif config.get("trigger_builds", False):
+        pre_deploy_method, deploy_method, post_deploy_method = DEFAULT_DEPLOY_METHODS
+        post_deploy_method = post_deploy_trigger_builds
     else:
         pre_deploy_method, deploy_method, post_deploy_method = DEFAULT_DEPLOY_METHODS
     return pre_deploy_method, deploy_method, post_deploy_method
