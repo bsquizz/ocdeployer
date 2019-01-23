@@ -104,11 +104,7 @@ def post_deploy_trigger_builds(
             log.info("Re-triggering builds for '{}'".format(bc))
             oc("cancel-build", "bc/{}".format(bc), state="pending,new,running")
             oc("start-build", "bc/{}".format(bc))
-            try:
-                version = get_json("bc", bc)['status']['lastVersion']
-            except KeyError:
-                version = 1
-            items_to_wait_for.append(("build", "{}-{}".format(bc, version)))
+            items_to_wait_for.append(("bc", bc))
 
     if timeout:
         wait_for_ready_threaded(items_to_wait_for, timeout=timeout, exit_on_err=True)

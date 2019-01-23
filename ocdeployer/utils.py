@@ -244,6 +244,10 @@ def get_routes():
     return ret
 
 
+class StatusError(Exception):
+    pass
+
+
 def _check_status_for_restype(restype, json_data):
     """
     Depending on the resource type, check that it is "ready" or "complete"
@@ -256,6 +260,11 @@ def _check_status_for_restype(restype, json_data):
         status = json_data["status"]
     except KeyError:
         status = None
+
+    try:
+        name = json_data["metadata"]["name"]
+    except KeyError:
+        name = "unknown"
 
     if not status:
         return False
@@ -276,8 +285,25 @@ def _check_status_for_restype(restype, json_data):
             return True
 
     elif restype == "build":
-        if status.get("phase") == "Complete":
+        phase = status.get("phase").lower()
+        if phase == "cancelled":
+            log.warning("Build '%s' was cancelled!", name)
             return True
+        elif phase in ["completed", "complete"]:
+            return True
+        elif phase in ["failed", "error"]:
+            raise StatusError("Build '{}' failed!".format(name))
+
+    elif restype == "buildconfig":
+        try:
+            last_version = json_data["status"]["lastVersion"]
+        except KeyError:
+            log.debug("No builds triggered yet for 'bc/%s'", name)
+            return False
+
+        build = "{}-{}".format(name, last_version)
+        log.debug("checking 'bc/%s' last triggered build: %s", name, build)
+        return _check_status_for_restype("build", get_json("build", build))
 
     else:
         raise ValueError(
@@ -285,6 +311,8 @@ def _check_status_for_restype(restype, json_data):
                 restype
             )
         )
+
+
 
 
 def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=None):
@@ -330,8 +358,8 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
             log_on_loop=True,
         )
         return True
-    except TimedOutError:
-        log.exception("timed out")
+    except (TimedOutError, StatusError):
+        log.exception("Hit error waiting on '%s'", key)
         if exit_on_err:
             sys.exit(1)
         return False
