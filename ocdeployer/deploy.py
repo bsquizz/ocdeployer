@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 
-from .utils import load_cfg_file, oc, wait_for_ready_threaded
+from .utils import load_cfg_file, oc, wait_for_ready_threaded, get_json
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
 
@@ -93,14 +93,25 @@ def post_deploy_trigger_builds(
     processed_templates,
     project_name,
     template_dir,
-    variables_per_component
+    variables_per_component,
+    timeout
 ):
+    items_to_wait_for = []
+
     for _, template in processed_templates.items():
-        builds = template.get_processed_names_for_restype("bc")
-        for build in builds:
-            log.info("Re-triggering builds for '{}'".format(build))
-            oc("cancel-build", "bc/{}".format(build), state="pending,new,running")
-            oc("start-build", "bc/{}".format(build))
+        bcs = template.get_processed_names_for_restype("bc")
+        for bc in bcs:
+            log.info("Re-triggering builds for '{}'".format(bc))
+            oc("cancel-build", "bc/{}".format(bc), state="pending,new,running")
+            oc("start-build", "bc/{}".format(bc))
+            try:
+                version = get_json("bc", bc)['status']['lastVersion']
+            except KeyError:
+                version = 1
+            items_to_wait_for.append(("build", "{}-{}".format(bc, version)))
+
+    if timeout:
+        wait_for_ready_threaded(items_to_wait_for, timeout=timeout, exit_on_err=True)
 
 
 def _handle_secrets_and_imgs(config):
@@ -330,6 +341,7 @@ class DeployRunner(object):
                 project_name=self.project_name,
                 template_dir=dir_path,
                 variables_per_component=variables_per_component,
+                timeout=int(content.get("post_deploy_timeout", 0))
             )
 
         self._deployed_service_sets.append(service_set)

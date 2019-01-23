@@ -182,6 +182,11 @@ The best way to explain how template configuration works is to describe the proc
     # 'true', then the post-deploy logic that runs this step will be overriden
     trigger_builds: false
 
+    # Indicates how long post-deploy logic should take before timeout in sec
+    # A null value can be handled differently depending on the post deploy logic,
+    # but it is recommended that it means there is "no waiting" that will occur
+    post_deploy_timeout: 300
+
     images:
     # Lists the images these services require
     # key: the name used in the openshift config
