@@ -9,6 +9,8 @@ import time
 import os
 import yaml
 
+from yaml import YAMLError
+
 import sh
 from sh import ErrorReturnCode
 from wait_for import wait_for, TimedOutError
@@ -124,8 +126,8 @@ def oc(*args, **kwargs):
             cmd_kwargs.append("-{} {}".format(key, val))
     cmd_kwargs = " ".join(cmd_kwargs)
 
-    if not _silent:
-        log.info("Running command: oc %s %s", cmd_args, cmd_kwargs)
+    #if not _silent:
+    log.info("Running command: oc %s %s", cmd_args, cmd_kwargs)
 
     err_lines = []
     out_lines = []
