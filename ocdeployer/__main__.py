@@ -97,8 +97,33 @@ def list_sets(template_dir, output=None):
         print(yaml.dump(as_dict, default_flow_style=False))
 
 
-def get_variables_data(variables_file):
-    variables_data = load_cfg_file(variables_file)
+def object_merge(old, new):
+    """
+    Recursively merge two data structures
+
+    Thanks rsnyman :)
+    https://github.com/rochacbruno/dynaconf/commit/458ffa6012f1de62fc4f68077f382ab420b43cfc#diff-c1b434836019ae32dc57d00dd1ae2eb9R15
+    """
+    if isinstance(old, list) and isinstance(new, list):
+        for item in old[::-1]:
+            new.insert(0, item)
+    if isinstance(old, dict) and isinstance(new, dict):
+        for key, value in old.items():
+            if key not in new:
+                new[key] = value
+            else:
+                object_merge(value, new[key])
+
+
+def get_variables_data(variables_files):
+    variables_data = load_cfg_file(variables_files[0])
+
+    # Merge multiple config files
+    if len(variables_files) > 1:
+        for var_file in variables_files[1:]:
+            merged_file_data = load_cfg_file(var_file)
+            object_merge(variables_data, merged_file_data)
+            variables_data = merged_file_data
 
     # Check if there's any variables we need to prompt for
     for section, data in variables_data.items():
@@ -155,8 +180,12 @@ def main():
 @click.option(
     "--env-file",
     "-e",
-    default="",
-    help="Path to parameters config file (default: None)",
+    "env_files",
+    help=(
+        "Path to parameters config file (default: None)."
+        "  Use this option multiple times to concatenate config files"
+    ),
+    multiple=True
 )
 @click.option(
     "--template-dir",
@@ -203,7 +232,7 @@ def deploy_to_project(
     sets,
     all_services,
     secrets_src_project,
-    env_file,
+    env_files,
     template_dir,
     ignore_requires,
     scale_resources,
@@ -267,8 +296,8 @@ def deploy_to_project(
         log.info("Aborted by user")
         sys.exit(0)
 
-    if env_file:
-        variables_data = get_variables_data(env_file)
+    if env_files:
+        variables_data = get_variables_data(env_files)
     else:
         variables_data = {}
 
