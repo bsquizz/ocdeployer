@@ -139,6 +139,9 @@ If we had more sets, you could deploy only set1 and set2 with the below command.
 1) Runs `oc import-image` for any images listed in the `_cfg.yml`. NOTE: if image streams with the same name/tag already exist in the project, they will not be re-imported.
 2) Imports any needed secrets from the secrets local dir, or from a separate OpenShift project. NOTE: if any secrets exist with the same name in the project, they will be overwritten.
 3) Runs custom pre-deploy logic, if any is defined.
-4) For each stage, it deploys the components in the configured order. If the default `deploy` logic is not overwritten by a custom deploy method, it runs `oc process -f` and passes in the `parameters` defined in the env file. If a parameter exists in the env file but it is NOT defined in the template, it will not be passed in. Then it runs `oc apply` on the processed template. This means you can "re-deploy" over an existing deployment, and if items already exist the config for them is just overwritten.
+4) For each stage, it deploys the components in the configured order. If the default `deploy` logic is not overwritten by a custom deploy method:
+* the template is run through jinja2 processing first. This looks at any values in the env.yaml that are not defined as 'parameters'
+* the template is then processed via `oc process -f` and the `parameters` defined in the env file are passed in. If a parameter exists in the env file but it is NOT defined in the template, it will not be passed in.
+* `oc apply` is run for the processed template. This means you can "re-deploy" over an existing deployment, and if items already exist the config for them is just overwritten.
 5) Waits for any `DeploymentConfigs` that were just configured to reach "active" state (it waits for all components in a stage in parallel), then moves on to the next stage.
 6) When all stages are completed in the service set, it runs custom post-deploy logic for the service set, if any is defined.
