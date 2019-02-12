@@ -8,8 +8,9 @@ A tool which wraps the OpenShift command line tools to enable repeatable automat
 * Define which secrets your services rely on, and import them either from a local dir, or from another project in OpenShift
 * Split the templates up into "service sets" and deploy all sets, or specific sets
 * Define dependencies (for example: service set 'A' requires service set 'B')
-* Create environment files, which define parameters that should be set at template processing time, so you can deploy the
-same templates to different environments
+* Create environment files, which define parameters that should be set at template processing time, so you can deploy the same templates to different environments
+* Specify multiple environment files at deploy time and merge them
+* Use OpenShift templating along with jinja2 templating
 * Create custom pre-deploy/deploy/post-deploy scripts in python if more granular control is neeed
 * Quickly scale the resource request/limit defined in your templates.
 
@@ -22,6 +23,15 @@ You should log in to your project before deploying:
 
 
 # Getting Started
+
+## Details
+`ocdeployer` relies on 4 pieces of information:
+* A templates directory (default: ./templates) -- this houses your OpenShift YAML/JSON templates as well as special config files (named _cfg.yml). You can split your templates into folders, called service sets, and define a _cfg.yml inside each of these folders which takes care of deploying that specific service set. The base _cfg.yml defines the deploy order for all service sets, as well as any "global" secrets/images that should be imported that all services rely on.
+* A custom scripts directory (default: ./custom). This is optional. Python scripts can be placed in here which can be run at pre-deploy/deploy/post-deploy stages for specific service sets.
+* A secrets directory (default: ./secrets). This is optional. Openshift YAML files containing a secret or list of secrets can be placed in here. Service sets which require imported secrets can use the secrets in this directory.
+* An environment file or files. This is optional. Defines parameters that should be passed to the templates. You can specify multiple environment files on the CLI at deploy time and the values will be merged.
+
+See the [examples](example/README.md) to get a better idea of how all of this configuration comes together and to get more details on what ocdeployer does when you run a deploy.
 
 ## Installation and usage
 
@@ -118,15 +128,6 @@ Options:
   -i, --install-dir TEXT  Location to store cached templates and configs
   -h, --help              Show this message and exit.
 ```
-
-## Details
-`ocdeployer` relies on 4 pieces of information:
-* A templates directory (default: ./templates) -- this houses your OpenShift YAML/JSON templates as well as special config files (named _cfg.yml). You can split your templates into folders, called service sets, and define a _cfg.yml inside each of these folders which takes care of deploying that specific service set. The base _cfg.yml defines the deploy order for all service sets, as well as any "global" secrets/images that should be imported that all services rely on.
-* A custom scripts directory (default: ./custom). This is optional. Python scripts can be placed in here which can be run at pre-deploy/deploy/post-deploy stages for specific service sets.
-* A secrets directory (default: ./secrets). This is optional. Openshift YAML files containing a secret or list of secrets can be placed in here. Service sets which require imported secrets can use the secrets in this directory.
-* An environment file. This is optional. Defines parameters that should be passed to the templates.
-
-See the [examples](example/README.md) to get a better idea of how all of this configuration comes together.
 
 
 ### Template cache
@@ -283,23 +284,29 @@ To use the secrets files in your next project deploy:
 ```
 
 ## Environment file
-By default, the 'NAMESPACE' variable is passed to all templates which corresponds to the project name. You can also define an "environment"
+By default, the 'NAMESPACE' parameter is passed to all templates which corresponds to the project name. You can also define an "environment"
 file with more detailed variable information. Here is an example:
 
 ```yaml
 global:
-  VAR1: "applies to all components"
-  VAR2: "also applies to all components"
+  # Values defined outside of the "parameters" section are evaluated by jinja2 processing
+  VAR0: false
+  parameters:
+    # Values defined as "parameters" are evaluated by 'oc process' as OpenShift template parameters
+    VAR1: "applies to all components"
+    VAR2: "also applies to all components"
 
 advisor:
-  VAR2: "this overrides global VAR2 for only components in the advisor set"
-  VAR3: "VAR3 applies to all components within the advisor service set"
+  parameters:
+    VAR2: "this overrides global VAR2 for only components in the advisor set"
+    VAR3: "VAR3 applies to all components within the advisor service set"
 
 advisor/advisor-db:
-  VAR2: "this overrides global VAR2, and advisor VAR2, for only the advisor-db component"
-  VAR4: "VAR4 only applies to advisor-db"
-  # Using keyword {prompt} will cause ocdeployer to prompt for this variable's value at runtime.
-  VAR5: "{prompt}"
+  parameters:
+    VAR2: "this overrides global VAR2, and advisor VAR2, for only the advisor-db component"
+    VAR4: "VAR4 only applies to advisor-db"
+    # Using keyword {prompt} will cause ocdeployer to prompt for this variable's value at runtime.
+    VAR5: "{prompt}"
 ```
 
 This allows you to define your variables at a global level, at a "per service-set" level, or at a "per-component within a service-set" level. You can override variables with the same name at the "more granular levels" as well. If an OpenShift template does not have a variable defined in its "parameters" section, then that variable will be skipped at processing time. This allows you to define variables at a global level,
@@ -308,6 +315,34 @@ but not necessarily have to define each variable as a parameter in every single 
 Select your environment file at runtime with the `-e` or `--env-file` command-line option, e.g.:
 ```
 (venv) $ ocdeployer deploy -s myset -e my_env_file.yml myproject
+```
+
+You can define multiple environment files and merge them at deploy time. Example:
+
+env1.yaml
+```yaml
+global:
+  my_value: true
+  my_other_value: false
+```
+
+env2.yaml
+```yaml
+global:
+  my_value: false
+```
+
+Running the following command:
+```
+(venv) $ ocdeployer deploy -s myset -e env1.yaml -e env2.yaml myproject
+```
+
+Results in env1.yaml and env2.yaml being merged. Since env2 is listed later in the list, any matching parameter entries in this file will override those of env1. The result is a values file which looks like:
+
+```yaml
+global:
+  my_value: false
+  my_other_value: false
 ```
 
 ## Common usage
@@ -344,5 +379,5 @@ You can also delete everything matching a specific label:
 ```
 
 ## Known issues/needed improvements
-* Currently the scripts have no way to alter the templates other than via `oc process`. We may switch to a more thorough templating system in future.
 * The scripts currently check to ensure deployments have moved to 'active' before exiting, however, they do not remediate any "hanging" or "stuck" builds/deployments. Work on that will be coming soon...
+* There is currently no way to "enforce" configuration -- i.e. delete stuff that isn't listed in the templates.

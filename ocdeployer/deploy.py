@@ -221,7 +221,13 @@ class DeployRunner(object):
             dict of variables/values to apply to this specific component
         """
         variables = copy.deepcopy(self.variables_data.get("global", {}))
-        variables.update({"NAMESPACE": self.project_name})
+
+        if "parameters" not in variables:
+            variables["parameters"] = {}
+
+        # ocdeployer adds the "NAMESPACE" parameter by default at deploy time
+        variables["parameters"].update({"NAMESPACE": self.project_name})
+
         variables.update(self.variables_data.get(service_set, {}))
         variables.update(
             self.variables_data.get("{}/{}".format(service_set, component), {})

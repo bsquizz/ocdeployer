@@ -5,6 +5,10 @@ import os
 import json
 import logging
 import re
+import yaml
+
+from jinja2 import Template as Jinja2Template
+import sh
 
 from .utils import oc, parse_restype, get_cfg_files_in_dir, load_cfg_file
 
@@ -141,14 +145,65 @@ class Template(object):
         """
         self.path = path
         self.file_name, self.file_extension = os.path.splitext(self.path)
-        self.content = self._load_content()
         self.processed_content = {}
 
-    def _load_content(self):
+    def _process_via_oc(self, content, parameters=None, label=None):
         """
-        Load file, store content.
+        Run 'oc process' on the template and update content with the processed output
+
+        Only passes in a parameter to 'oc process' if it is listed in the template's
+        "parameters" config section.
+
+        Args:
+            parameters -- dict with key param name/param value for this template
+            resources_scale_factor (float) -- scale any defined resource requests/limits by
+                 this number (i.e., multiple their current values by this number)
+            label (str) -- label to apply to all resources
         """
-        content = load_cfg_file(self.path)
+        if not parameters:
+            parameters = {}
+
+        # Create set of param strings to pass into 'oc process'
+        params_and_vals = {}
+        for param_name, param_value in parameters.items():
+            params_and_vals[param_name] = "{}={}".format(param_name, param_value)
+
+        log.info(
+            "Running 'oc process' on template '%s' with parameters '%s'",
+            self.file_name,
+            ", ".join([string for _, string in params_and_vals.items()]),
+        )
+
+        extra_args = []
+        # Only insert the parameter if it was defined in the template
+        param_names_defined_in_template = [
+            param.get("name") for param in content.get("parameters", [])
+        ]
+        skipped_params = []
+        for param_name, string in params_and_vals.items():
+            if param_name in param_names_defined_in_template:
+                extra_args.extend(["-p", string])
+            else:
+                skipped_params.append(param_name)
+
+        if skipped_params:
+            log.warning(
+                "Skipped parameters defined in config but not present in template: %s",
+                ", ".join(skipped_params),
+            )
+
+        if label:
+            extra_args.extend(["-l", label])
+
+        output = oc("process", "-f", "-", "-o", "json", *extra_args, _silent=True, _in=json.dumps(content))
+
+        return json.loads(str(output))
+
+    def _load_content(self, string):
+        if self.path.endswith(".yml") or self.path.endswith(".yaml"):
+            content = yaml.safe_load(string)
+        else:
+            content = json.loads(string)
 
         # Some checks to be (semi-)sure this is a valid template...
         if content.get("kind", "").lower() != "template":
@@ -158,57 +213,20 @@ class Template(object):
 
         return content
 
-    def process(self, variables, resources_scale_factor=1.0, label=None):
-        """
-        Run 'oc process' on the template and update content with the processed output
+    def _process_via_jinja2(self, variables):
+        log.info("Rendering template '%s' with jinja2", self.file_name)
+        with open(self.path) as f:
+            template = Jinja2Template(f.read())
+        return self._load_content(template.render(**variables))
 
-        Only passes in a variable to 'oc process' if it is listed in the template's
-        "parameters" config section.
+    def process(self, variables, resources_scale_factor=1.0, label=None, engine="openshift"):
+        # Run the template through jinja processing first
+        jinjafied_content = self._process_via_jinja2(variables)
 
-        TODO: maybe use our own templating engine here instead of 'oc process'?
+        # Once that is done, run it through standard openshift template processing
+        self.processed_content = self._process_via_oc(jinjafied_content, variables.get("parameters"), label)
 
-        Args:
-            variables -- dict with key variable name/variable value for this template
-            resources_scale_factor (float) -- scale any defined resource requests/limits by
-                 this number (i.e., multiple their current values by this number)
-            label (str) -- label to apply to all resources
-        """
-        # Create set of param strings to pass into 'oc process'
-        vars_and_vals = {}
-        for var_name, var_value in variables.items():
-            vars_and_vals[var_name] = "{}={}".format(var_name, var_value)
-
-        log.info(
-            "Processing template '%s' with vars '%s'",
-            self.file_name,
-            ", ".join([string for _, string in vars_and_vals.items()]),
-        )
-
-        extra_args = []
-        # Only insert the parameter if it was defined in the template
-        param_names = [
-            param.get("name") for param in self.content.get("parameters", [])
-        ]
-        skipped_vars = []
-        for var_name, string in vars_and_vals.items():
-            if var_name in param_names:
-                extra_args.extend(["-p", string])
-            else:
-                skipped_vars.append(var_name)
-
-        if skipped_vars:
-            log.warning(
-                "Skipped variables defined in config but not present in template: %s",
-                ", ".join(skipped_vars),
-            )
-
-        if label:
-            extra_args.extend(["-l", label])
-
-        output = oc("process", "-f", self.path, "-o", "json", *extra_args, _silent=True)
-
-        self.processed_content = json.loads(str(output))
-
+        # Scale resources in the template
         if resources_scale_factor > 0 and resources_scale_factor != 1:
             log.info(
                 "Scaling resources for template '%s' by factor of %f",
@@ -216,6 +234,7 @@ class Template(object):
                 resources_scale_factor,
             )
             scale_resources(self.processed_content, resources_scale_factor)
+
         return self.processed_content
 
     def dump_processed_json(self):
