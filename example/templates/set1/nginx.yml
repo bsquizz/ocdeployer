@@ -37,6 +37,7 @@ objects:
     selector:
       name: "${NAME}"
 
+{% if deploy_route %}
 - kind: Route
   apiVersion: v1
   metadata:
@@ -48,6 +49,7 @@ objects:
     to:
       kind: Service
       name: "${NAME}"
+{% endif %}
 
 - kind: ImageStream
   apiVersion: v1

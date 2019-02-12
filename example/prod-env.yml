@@ -6,7 +6,7 @@ global:
 
 set1/nginx:
   # These parameters will apply only to 'nginx' component in set1
-  deploy_route: true
+  deploy_route: true  # this is a jinja2 variable
   parameters:
     NAME: "nginx1"
     APPLICATION_DOMAIN: "nginx-prod.mycompany.com"
