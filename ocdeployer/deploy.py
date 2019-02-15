@@ -225,13 +225,14 @@ class DeployRunner(object):
         if "parameters" not in variables:
             variables["parameters"] = {}
 
-        # ocdeployer adds the "NAMESPACE" parameter by default at deploy time
-        variables["parameters"].update({"NAMESPACE": self.project_name})
-
         variables.update(self.variables_data.get(service_set, {}))
         variables.update(
             self.variables_data.get("{}/{}".format(service_set, component), {})
         )
+
+        # ocdeployer adds the "NAMESPACE" parameter by default at deploy time
+        variables["parameters"].update({"NAMESPACE": self.project_name})
+
         return variables
 
     def _get_variables_per_component(self, service_set_content, service_set_name):
