@@ -233,18 +233,91 @@ The best way to explain how template configuration works is to describe the proc
 
 
 ### Custom Deploy Logic
-If you set `custom_deploy_logic` to True, you should then create a custom deploy script in the `custom` dir with a name that matches your service set -- e.g. `deploy_myservice.py`. Inside this script you can define 3 methods:
+
+By default, no pre_deploy/post_deploy is run, and the deploy logic is taken care of by the `ocdeployer.deploy.deploy_components` method. So, unless you are doing something complicated and require additional "python scripting" to handle your (pre/post)deploy logic, you don't need to worry about custom logic.
+
+But let's say you want to perform some tasks prior to deploying your components, or after deploying your components. Custom scripts can be useful for this.
+
+You can set `custom_deploy_logic` in your service set's `_cfg.yml` to `True`. You should then create a custom deploy script in the `custom` dir of your project with a name that matches your service set -- e.g. `deploy_myservice.py`. Inside this script you can define 3 methods:
 
 ```python
 def pre_deploy(project_name, template_dir, variables_for_component):
+```
+* `project_name`: string, name of project being deployed to
+* `template_dir`: string, the full path to the directory of the service set's templates which are being deployed
+* `variables_for_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
+
+```python
 def deploy(project_name, template_dir, components, variables_for_component, wait, timeout, resources_scale_factor, label):
+```
+* `project_name`: string, name of project being deployed to
+* `template_dir`: string, the full path to the directory of the service set's templates which are being deployed
+* `components`: list of strings, the component names from your service set that are being deployed
+* `variables_for_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
+* `wait`: boolean, used to determine whether the deploy logic should wait for things to "finish"
+* `timeout`: int, how long to wait for before timing out
+* `resources_scale_factor`: float, the value passed in to --scale-resources when running ocdeployer
+* `label`: string, the label attached to each object in Open Shift at deploy time
+
+```python
 def post_deploy(processed_templates, project_name, template_dir, variables_for_component):
 ```
+* `processed_templates`: dict with containing the processed template info for each component that was deployed -- keys: template name, vals: an instance of `ocdeployer.templates.Template` 
+* `project_name`: string, name of project being deployed to
+* `template_dir`: string, the full path to the directory of the service set's templates which are being deployed
+* `variables_for_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
 
-By default, no pre_deploy/post_deploy is run, and the deploy logic is taken care of by the `ocdeployer.deploy.deploy_components` method. So, unless you are doing something complicated and require additional "python scripting" to handle your (pre/post)deploy logic, you don't need to worry about this step.
+Much of the code in `ocdeployer.common` may be useful to you as you write custom deploy logic (such as the `oc` method used to run oc commands).
 
-Many of the code in `ocdeployer.common` may be useful to you as you write custom deploy logic.
 
+#### Example 1
+Let's say that after you deploy your components, you want to trigger a build on any build configurations you pushed (actually, this can easily be handled by setting `trigger_builds` to `True` in your service set `_cfg.yml` -- but play along).
+
+You could define a post-deploy method that looks like this:
+```python
+from ocdeployer.utils import oc, wait_for_ready_threaded
+
+log = logging.getLogger(__name__)
+
+def post_deploy(**kwargs):
+    build_config_names = []
+    for _, template in kwargs.get("processed_templates", {}).items():
+        # Get the name of all build configs that were deployed
+        # Remember, we are looking at the processed template info
+        # We're looking at the template AFTER variable substitution occurred.
+        build_config_names.extend(template.get_processed_names_for_restype("bc"))
+
+    objs_to_wait_for = []
+    for bc_name in build_config_names:
+        oc("start-build", bc_name, exit_on_err=False)
+        objs_to_wait_for.append(("bc", bc_name))
+    else  
+        log.warning("No build configs were deployed, nothing to do")
+
+    # Wait for all builds to reach 'completed' state:
+    if objs_to_wait_for:
+        wait_for_ready_threaded(objs_to_wait_for)
+```
+
+#### Example 2
+Let's say that when any ConfigMaps in your project update, you want to trigger a new rollout of a deployment. You could do that by tracking the state of the ConfigMap before deploying and comparing it to the state after.
+
+```python
+from ocdeployer.utils import oc, get_json, wait_for_ready
+
+log = logging.getLogger(__name__)
+old_config_map_data = {}
+
+def pre_deploy(**kwargs):
+    old_config_map_data = get_json("configmap", "MyConfigMap")['data']
+
+
+def post_deploy(**kwargs):
+    new_config_map_data = get_json("configmap", "MyConfigMap")['data']
+    if new_config_map_data != old_config_map_data:
+        oc("rollout", "dc/MyDeployment")
+        wait_for_ready("dc", "MyDeployment")
+```
 
 ### Secrets
 
