@@ -147,9 +147,7 @@ def oc(*args, **kwargs):
         immutable_errors_only = False
 
         # Ignore warnings that are printed to stderr
-        err_lines = [
-            line for line in err_lines if not line.lstrip().startswith("Warning:")
-        ]
+        err_lines = [line for line in err_lines if not line.lstrip().startswith("Warning:")]
 
         if err_lines:
             immutable_errors_only = all(
@@ -307,12 +305,8 @@ def _check_status_for_restype(restype, json_data):
 
     else:
         raise ValueError(
-            "Checking status for resource type {} is not supported right now".format(
-                restype
-            )
+            "Checking status for resource type {} is not supported right now".format(restype)
         )
-
-
 
 
 def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=None):
@@ -380,9 +374,7 @@ def wait_for_ready_threaded(restype_name_list, timeout=300, exit_on_err=False):
     """
     result_dict = dict()
     threads = [
-        threading.Thread(
-            target=wait_for_ready, args=(restype, name, timeout, False, result_dict)
-        )
+        threading.Thread(target=wait_for_ready, args=(restype, name, timeout, False, result_dict))
         for restype, name in restype_name_list
     ]
     for thread in threads:
@@ -406,7 +398,7 @@ def any_pods_running(dc_name):
     """
     pod_data = get_json("pod", label="deploymentconfig={}".format(dc_name))
     if not pod_data or not len(pod_data.get("items", [])):
-        log.info("No pods found for {}".format(dc_name))
+        log.info("No pods found for dc %s", dc_name)
         return False
     for pod in pod_data["items"]:
         if _check_status_for_restype("pod", pod):
@@ -420,7 +412,7 @@ def all_pods_running(dc_name):
     """
     pod_data = get_json("pod", label="deploymentconfig={}".format(dc_name))
     if not pod_data or not len(pod_data.get("items", [])):
-        log.info("No pods found for {}".format(dc_name))
+        log.info("No pods found for dc %s", dc_name)
         return False
     statuses = []
     for pod in pod_data["items"]:
@@ -440,7 +432,7 @@ def stop_deployment(dc_name):
     Pause a deployment, delete all of its replication controllers, wait for all pods to shut down
     """
     if not any_pods_running(dc_name):
-        log.info("No pods running for dc '{}', nothing to stop".format(dc_name))
+        log.info("No pods running for dc '%s', nothing to stop", dc_name)
 
     log.info("Patching deployment config for '%s' to pause rollouts", dc_name)
     try:
@@ -450,13 +442,9 @@ def stop_deployment(dc_name):
             pass
 
     log.info("Removing replication controllers for '%s'", dc_name)
-    rc_data = get_json(
-        "rc", label="openshift.io/deployment-config.name={}".format(dc_name)
-    )
+    rc_data = get_json("rc", label="openshift.io/deployment-config.name={}".format(dc_name))
     if not rc_data or not len(rc_data.get("items", [])):
-        raise Exception(
-            "Unable to find replication controllers for '{}'".format(dc_name)
-        )
+        raise Exception("Unable to find replication controllers for '{}'".format(dc_name))
     for rc in rc_data["items"]:
         rc_name = rc["metadata"]["name"]
         oc("delete", "rc", rc_name)
@@ -479,10 +467,7 @@ def dc_ready(dc_name):
 
 def start_deployment(dc_name):
     if dc_ready(dc_name):
-        log.info(
-            "Deployment '%s' already deployed and running, skipping deploy for it",
-            dc_name,
-        )
+        log.info("Deployment '%s' already deployed and running, skipping deploy for it", dc_name)
         return
 
     log.info("Patching deployment config for '%s' to resume rollouts", dc_name)

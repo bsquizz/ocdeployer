@@ -52,19 +52,12 @@ def _scale_limits_and_requests(data, scale_factor):
         old_val = limit_val[0] if isinstance(limit_val, tuple) else limit_val
         new_val = _scale_val(old_val, scale_factor)
         data["limits"][limit_key] = new_val
-        log.info(
-            "Adjusted limits for '%s', old: %s, new: %s", limit_key, old_val, new_val
-        )
+        log.info("Adjusted limits for '%s', old: %s, new: %s", limit_key, old_val, new_val)
     for request_key, request_val in data.get("requests", {}).items():
         old_val = request_val[0] if isinstance(request_val, tuple) else request_val
         new_val = _scale_val(old_val, scale_factor)
         data["requests"][request_key] = new_val
-        log.info(
-            "Adjusted requests for '%s', old: %s, new: %s",
-            request_key,
-            old_val,
-            new_val,
-        )
+        log.info("Adjusted requests for '%s', old: %s, new: %s", request_key, old_val, new_val)
 
 
 def scale_resources(
@@ -195,7 +188,9 @@ class Template(object):
         if label:
             extra_args.extend(["-l", label])
 
-        output = oc("process", "-f", "-", "-o", "json", *extra_args, _silent=True, _in=json.dumps(content))
+        output = oc(
+            "process", "-f", "-", "-o", "json", *extra_args, _silent=True, _in=json.dumps(content)
+        )
 
         return json.loads(str(output))
 
@@ -217,23 +212,31 @@ class Template(object):
         log.info("Rendering template '%s' with jinja2", self.file_name)
         with open(self.path) as f:
             template = Jinja2Template(f.read())
-        return self._load_content(template.render(**variables))
+        rendered_txt = template.render(**variables)
+        if not rendered_txt.strip():
+            log.info("Template '%s' is empty after jinja2 processing", self.file_name)
+            return None
+        return self._load_content(rendered_txt)
 
     def process(self, variables, resources_scale_factor=1.0, label=None, engine="openshift"):
         # Run the template through jinja processing first
         jinjafied_content = self._process_via_jinja2(variables)
 
         # Once that is done, run it through standard openshift template processing
-        self.processed_content = self._process_via_oc(jinjafied_content, variables.get("parameters"), label)
-
-        # Scale resources in the template
-        if resources_scale_factor > 0 and resources_scale_factor != 1:
-            log.info(
-                "Scaling resources for template '%s' by factor of %f",
-                self.file_name,
-                resources_scale_factor,
+        if jinjafied_content:
+            self.processed_content = self._process_via_oc(
+                jinjafied_content, variables.get("parameters"), label
             )
-            scale_resources(self.processed_content, resources_scale_factor)
+            # Scale resources in the template
+            if resources_scale_factor > 0 and resources_scale_factor != 1:
+                log.info(
+                    "Scaling resources for template '%s' by factor of %f",
+                    self.file_name,
+                    resources_scale_factor,
+                )
+                scale_resources(self.processed_content, resources_scale_factor)
+        else:
+            self.processed_content = {}
 
         return self.processed_content
 

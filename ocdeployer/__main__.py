@@ -34,9 +34,7 @@ def wipe(no_confirm, project, label):
         extra_msg = " with label '{}'".format(label)
 
     if not no_confirm and prompter.yesno(
-        "I'm about to delete everything in project '{}'{}.  Continue?".format(
-            project, extra_msg
-        ),
+        "I'm about to delete everything in project '{}'{}.  Continue?".format(project, extra_msg),
         default="no",
     ):
         sys.exit(0)
@@ -130,9 +128,7 @@ def get_variables_data(variables_files):
         for var_name, var_value in data.items():
             if var_value == "{prompt}":
                 variables_data[section][var_name] = prompter.prompt(
-                    "Enter value for parameter '{}' in section '{}':".format(
-                        var_name, section
-                    )
+                    "Enter value for parameter '{}' in section '{}':".format(var_name, section)
                 )
 
     return variables_data
@@ -163,15 +159,9 @@ def main():
     default=None,
     help="Import secrets from local files in a directory (default 'appdirs'/secrets)",
 )
-@click.option(
-    "--sets", "-s", help="Comma,separated,list of specific service set names to deploy"
-)
-@click.option(
-    "--all", "-a", "all_services", is_flag=True, help="Deploy all service sets"
-)
-@click.option(
-    "--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"
-)
+@click.option("--sets", "-s", help="Comma,separated,list of specific service set names to deploy")
+@click.option("--all", "-a", "all_services", is_flag=True, help="Deploy all service sets")
+@click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip")
 @click.option(
     "--secrets-src-project",
     default="secrets",
@@ -185,14 +175,9 @@ def main():
         "Path to parameters config file (default: None)."
         "  Use this option multiple times to concatenate config files"
     ),
-    multiple=True
+    multiple=True,
 )
-@click.option(
-    "--template-dir",
-    "-t",
-    default=None,
-    help="Template directory (default ./templates)",
-)
+@click.option("--template-dir", "-t", default=None, help="Template directory (default ./templates)")
 @click.option(
     "--ignore-requires",
     "-i",
@@ -215,8 +200,7 @@ def main():
     "--pick",
     "-p",
     default=None,
-    help="Pick a single component from a service"
-    " set and deploy that.  E.g. '-p myset/myvm'",
+    help="Pick a single component from a service" " set and deploy that.  E.g. '-p myset/myvm'",
 )
 @click.option(
     "--label",
@@ -243,15 +227,15 @@ def deploy_to_project(
 ):
     if not template_dir:
         path = appdirs_path / "templates"
-        template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / 'templates'
+        template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "templates"
 
     if not custom_dir:
         path = appdirs_path / "custom"
-        custom_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / 'custom'
+        custom_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "custom"
 
     if not secrets_local_dir:
         path = appdirs_path / "secrets"
-        secrets_local_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / 'secrets'
+        secrets_local_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "secrets"
 
     if not dst_project:
         log.error("Error: no destination project given")
@@ -322,10 +306,7 @@ def deploy_to_project(
 @main.command("wipe", help="Delete everything from project")
 @click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
 @click.option(
-    "--label",
-    "-l",
-    default=None,
-    help="Delete only a specific label.  E.g. '-l app=test'",
+    "--label", "-l", default=None, help="Delete only a specific label.  E.g. '-l app=test'"
 )
 @click.argument("dst_project")
 def wipe_project(no_confirm, dst_project, label):
@@ -364,28 +345,38 @@ def list_act_sets(template_dir, output):
     return list_sets(template_dir, output)
 
 
-@main.group('cache')
+@main.group("cache")
 def cache():
     """Used for updating or deleting local template cache"""
     pass
 
 
 @cache.command("initialize", help="Fetch new template cache")
-@click.option("--install-dir", "-i", default=appdirs_path,
-              help="Location to store cached templates and configs")
+@click.option(
+    "--install-dir",
+    "-i",
+    default=appdirs_path,
+    help="Location to store cached templates and configs",
+)
 @click.argument("url")
 def initialize_cache(install_dir, url):
     if not install_dir.exists():
         proc = subprocess.Popen(["git", "clone", url, str(install_dir)])
         proc.wait()
     else:
-        print(f"{install_dir} already exists, use --update to update files"
-              f" or --delete to clear current cache")
+        print(
+            f"{install_dir} already exists, use --update to update files"
+            f" or --delete to clear current cache"
+        )
 
 
 @cache.command("update", help="Update template cache files")
-@click.option("--install-dir", "-i", default=appdirs_path,
-              help="Location to store cached templates and configs")
+@click.option(
+    "--install-dir",
+    "-i",
+    default=appdirs_path,
+    help="Location to store cached templates and configs",
+)
 def update_cache(install_dir):
     my_env = os.environ.copy()
     my_env["GIT_WORK_TREE"] = str(install_dir)
@@ -397,13 +388,17 @@ def update_cache(install_dir):
 
 
 @cache.command("delete", help="Delete current template cache")
-@click.option("--install-dir", "-i", default=appdirs_path,
-              help="Location to store cached templates and configs")
+@click.option(
+    "--install-dir",
+    "-i",
+    default=appdirs_path,
+    help="Location to store cached templates and configs",
+)
 def delete_cache(install_dir):
     if not install_dir.exists():
         print(f"{install_dir} already deleted please use initialize to create new cache")
     else:
-        click.confirm(f'Are you sure you want to delete {install_dir}?', abort=True)
+        click.confirm(f"Are you sure you want to delete {install_dir}?", abort=True)
         shutil.rmtree(install_dir)
 
 

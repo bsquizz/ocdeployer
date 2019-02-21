@@ -61,16 +61,18 @@ def deploy_components(
     for comp_name in components:
         if comp_name not in templates_by_name:
             raise ValueError(
-                "Component '{}' not found in template dir '{}'".format(
-                    comp_name, template_dir
-                )
+                "Component '{}' not found in template dir '{}'".format(comp_name, template_dir)
             )
 
         template = templates_by_name.get(comp_name)
-        template.process(
-            variables_per_component.get(comp_name, {}), resources_scale_factor, label
-        )
-        log.info("Deploying component '{}'".format(comp_name))
+        template.process(variables_per_component.get(comp_name, {}), resources_scale_factor, label)
+
+        if not template.processed_content:
+            log.info("Component %s has an empty template, skipping deploy...", comp_name)
+            templates_by_name.pop(comp_name)
+            continue
+
+        log.info("Deploying component '%s'", comp_name)
         oc("apply", "-f", "-", "-n", project_name, _in=template.dump_processed_json())
 
         deployments = template.get_processed_names_for_restype("dc")
@@ -79,9 +81,7 @@ def deploy_components(
 
     # Wait on all deployments
     if wait:
-        wait_for_ready_threaded(
-            deployments_to_wait_for, timeout=timeout, exit_on_err=True
-        )
+        wait_for_ready_threaded(deployments_to_wait_for, timeout=timeout, exit_on_err=True)
 
     return templates_by_name
 
@@ -90,18 +90,14 @@ DEFAULT_DEPLOY_METHODS = (None, deploy_components, None)
 
 
 def post_deploy_trigger_builds(
-    processed_templates,
-    project_name,
-    template_dir,
-    variables_per_component,
-    timeout
+    processed_templates, project_name, template_dir, variables_per_component, timeout
 ):
     items_to_wait_for = []
 
     for _, template in processed_templates.items():
         bcs = template.get_processed_names_for_restype("bc")
         for bc in bcs:
-            log.info("Re-triggering builds for '{}'".format(bc))
+            log.info("Re-triggering builds for '%s'", bc)
             oc("cancel-build", "bc/{}".format(bc), state="pending,new,running")
             oc("start-build", "bc/{}".format(bc))
             items_to_wait_for.append(("bc", bc))
@@ -129,7 +125,7 @@ def _get_custom_methods(service_set, custom_dir):
     try:
         sys.path.insert(0, custom_dir)
         module = importlib.import_module("deploy_{}".format(service_set))
-        log.info("Custom script found for component '{}'".format(service_set))
+        log.info("Custom script found for component '%s'", service_set)
     except ImportError:
         return DEFAULT_DEPLOY_METHODS
 
@@ -137,21 +133,19 @@ def _get_custom_methods(service_set, custom_dir):
 
     try:
         pre_deploy_method = getattr(module, "pre_deploy")
-        log.info("Custom pre_deploy() found for component '{}'".format(service_set))
+        log.info("Custom pre_deploy() found for component '%s'", service_set)
     except AttributeError:
         pre_deploy_method = None
 
     try:
         deploy_method = getattr(module, "deploy")
-        log.info("Custom deploy() method found for component '{}'".format(service_set))
+        log.info("Custom deploy() method found for component '%s'", service_set)
     except AttributeError:
         deploy_method = deploy_components
 
     try:
         post_deploy_method = getattr(module, "post_deploy")
-        log.info(
-            "Custom post_deploy() method found for component '{}'".format(service_set)
-        )
+        log.info("Custom post_deploy() method found for component '%s'", service_set)
     except AttributeError:
         post_deploy_method = None
 
@@ -226,9 +220,7 @@ class DeployRunner(object):
             variables["parameters"] = {}
 
         variables.update(self.variables_data.get(service_set, {}))
-        variables.update(
-            self.variables_data.get("{}/{}".format(service_set, component), {})
-        )
+        variables.update(self.variables_data.get("{}/{}".format(service_set, component), {}))
 
         # ocdeployer adds the "NAMESPACE" parameter by default at deploy time
         variables["parameters"].update({"NAMESPACE": self.project_name})
@@ -240,9 +232,7 @@ class DeployRunner(object):
         for _, stage_config in service_set_content.get("deploy_order", {}).items():
             variables_per_component.update(
                 {
-                    component_name: self._get_variables(
-                        service_set_name, component_name
-                    )
+                    component_name: self._get_variables(service_set_name, component_name)
                     for component_name in stage_config.get("components", [])
                 }
             )
@@ -258,93 +248,94 @@ class DeployRunner(object):
                     )
                 )
 
+    def _deploy_stage(
+        self, deploy_func, variables_per_component, stage, deploy_order, service_set, dir_path
+    ):
+        log.info("Entering stage '%s' of config in service set '%s'", stage, service_set)
+
+        # Collect the components defined in this stage
+        if self.specific_component:
+            # If a single component has been 'picked', just deploy that one
+            components = [self.specific_component]
+        else:
+            components = deploy_order[stage].get("components", [])
+
+        # If a component has been skipped, remove it from our component list
+        if self.skip:
+            for entry in self.skip:
+                entry_service_set, entry_component = entry.split("/")
+                if entry_service_set == service_set and entry_component in components:
+                    log.info("SKIPPING deploy for component: %s", entry_component)
+                    components.remove(entry_component)
+
+        # Make sure all the component names have a template
+        templates_found = get_templates_in_dir(dir_path)
+        for comp in components:
+            if comp not in templates_found:
+                raise ValueError(
+                    "File for component named '{}' does not exist in service set '{}'".format(
+                        comp, service_set
+                    )
+                )
+
+        log.info("Running deploy() in stage '%s' of service set '%s'", stage, service_set)
+
+        processed_templates_this_stage = deploy_func(
+            project_name=self.project_name,
+            template_dir=dir_path,
+            components=components,
+            variables_per_component=variables_per_component,
+            wait=deploy_order[stage].get("wait", True) is True,
+            timeout=deploy_order[stage].get("timeout", 300),
+            resources_scale_factor=self.resources_scale_factor,
+            label=self.label,
+        )
+        return processed_templates_this_stage
+
     def _deploy_service_set(self, service_set):
-        log.info("Handling config for service set '{}'".format(service_set))
+        log.info("Handling config for service set '%s'", service_set)
         processed_templates = {}
 
         dir_path = os.path.join(self.template_dir, service_set)
         cfg_path = os.path.join(dir_path, "_cfg.yml")
 
         if not os.path.isdir(dir_path):
-            raise ValueError(
-                "Unable to find directory for service set {}".format(service_set)
-            )
+            raise ValueError("Unable to find directory for service set {}".format(service_set))
 
         content = load_cfg_file(cfg_path)
         if not self.ignore_requires:
             self._check_requires(content, service_set)
         _handle_secrets_and_imgs(content)
-        pre_deploy, deploy, post_deploy = _get_deploy_methods(
+        pre_deploy_func, deploy_func, post_deploy_func = _get_deploy_methods(
             content, service_set, self.custom_dir
         )
-        variables_per_component = self._get_variables_per_component(
-            content, service_set
-        )
+        variables_per_component = self._get_variables_per_component(content, service_set)
 
         deploy_order = content.get("deploy_order", {})
 
-        if pre_deploy:
-            log.info("Running pre_deploy() for service set '{}'".format(service_set))
-            pre_deploy(
+        if pre_deploy_func:
+            log.info("Running pre_deploy() for service set '%s'", service_set)
+            pre_deploy_func(
                 project_name=self.project_name,
                 template_dir=dir_path,
                 variables_per_component=variables_per_component,
             )
 
         for stage in sorted(deploy_order.keys()):
-            log.info(
-                "Entering stage '{}' of config in service set '{}'".format(
-                    stage, service_set
+            processed_templates.update(
+                self._deploy_stage(
+                    deploy_func, variables_per_component, stage, deploy_order, service_set, dir_path
                 )
             )
 
-            # Collect the components defined in this stage
-            if self.specific_component:
-                # If a single component has been 'picked', just deploy that one
-                components = [self.specific_component]
-            else:
-                components = deploy_order[stage].get("components", [])
-
-            # If a component has been skipped, remove it from our component list
-            if self.skip:
-                for entry in self.skip:
-                    entry_service_set, entry_component = entry.split("/")
-                    if entry_service_set == service_set and entry_component in components:
-                        log.info("SKIPPING deploy for component: %s", entry_component)
-                        components.remove(entry_component)
-
-            # Make sure all the component names have a template
-            templates_found = get_templates_in_dir(dir_path)
-            for comp in components:
-                if comp not in templates_found:
-                    raise ValueError(
-                        "File for component named '{}' does not exist in service set '{}'".format(
-                            comp, service_set
-                        )
-                    )
-
-            log.info("Running deploy() for service set '{}'".format(service_set))
-
-            processed_templates_this_stage = deploy(
-                project_name=self.project_name,
-                template_dir=dir_path,
-                components=components,
-                variables_per_component=variables_per_component,
-                wait=deploy_order[stage].get("wait", True) is True,
-                timeout=deploy_order[stage].get("timeout", 300),
-                resources_scale_factor=self.resources_scale_factor,
-                label=self.label,
-            )
-            processed_templates.update(processed_templates_this_stage)
-
-        if post_deploy:
-            log.info("Running post_deploy() for service set '{}'".format(service_set))
-            post_deploy(
+        if post_deploy_func:
+            log.info("Running post_deploy() for service set '%s'", service_set)
+            post_deploy_func(
                 processed_templates=processed_templates,
                 project_name=self.project_name,
                 template_dir=dir_path,
                 variables_per_component=variables_per_component,
-                timeout=int(content.get("post_deploy_timeout", 0))
+                timeout=int(content.get("post_deploy_timeout", 0)),
             )
 
         self._deployed_service_sets.append(service_set)
@@ -384,14 +375,9 @@ class DeployRunner(object):
         for stage in sorted(deploy_order.keys()):
             service_sets = deploy_order[stage].get("components", [])
             for service_set in service_sets:
-                if (
-                    self.service_sets_selected
-                    and service_set not in self.service_sets_selected
-                ):
+                if self.service_sets_selected and service_set not in self.service_sets_selected:
                     log.info(
-                        "Skipping service set '{}', not selected for deploy at runtime".format(
-                            service_set
-                        )
+                        "Skipping service set '%s', not selected for deploy at runtime", service_set
                     )
                     continue
                 else:

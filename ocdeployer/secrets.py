@@ -28,9 +28,7 @@ def parse_secret_file(path):
             try:
                 secrets[item["metadata"]["name"]] = item
             except KeyError:
-                raise ValueError(
-                    "Secret at path '{}' has no metadata/name".format(path)
-                )
+                raise ValueError("Secret at path '{}' has no metadata/name".format(path))
 
     return secrets
 
@@ -44,9 +42,7 @@ def import_secrets_from_dir(path):
         for secret_name in secrets_in_file:
             if secret_name in secrets:
                 raise ValueError(
-                    "Secret with name '{}' defined twice in secrets dir".format(
-                        secret_name
-                    )
+                    "Secret with name '{}' defined twice in secrets dir".format(secret_name)
                 )
         secrets.update(secrets_in_file)
     return secrets
@@ -90,9 +86,7 @@ class SecretImporter(object):
 
         # Check if the directory import took care of it... if not, import from project...
         if name not in cls.imported_secret_names:
-            log.info(
-                "Secret '%s' not yet imported, trying import from project...", name
-            )
+            log.info("Secret '%s' not yet imported, trying import from project...", name)
             import_secret_from_project(cls.source_project, name)
             cls.imported_secret_names.append(name)
 
@@ -110,6 +104,4 @@ class SecretImporter(object):
         if verify:
             exists = oc("get", "secret", name, _exit_on_err=False)
             if not exists:
-                raise AssertionError(
-                    "secret '{}' does not exist after import".format(name)
-                )
+                raise AssertionError("secret '{}' does not exist after import".format(name))
