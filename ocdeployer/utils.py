@@ -42,6 +42,24 @@ SHORTCUTS = {
 }
 
 
+def object_merge(old, new):
+    """
+    Recursively merge two data structures
+
+    Thanks rsnyman :)
+    https://github.com/rochacbruno/dynaconf/commit/458ffa6012f1de62fc4f68077f382ab420b43cfc#diff-c1b434836019ae32dc57d00dd1ae2eb9R15
+    """
+    if isinstance(old, list) and isinstance(new, list):
+        for item in old[::-1]:
+            new.insert(0, item)
+    if isinstance(old, dict) and isinstance(new, dict):
+        for key, value in old.items():
+            if key not in new:
+                new[key] = value
+            else:
+                object_merge(value, new[key])
+
+
 def parse_restype(string):
     """
     Given a resource type or its shortcut, return the full resource type name.

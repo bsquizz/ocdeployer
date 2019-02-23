@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 
-from .utils import load_cfg_file, oc, wait_for_ready_threaded, get_json
+from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded, get_json
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
 
@@ -219,8 +219,8 @@ class DeployRunner(object):
         if "parameters" not in variables:
             variables["parameters"] = {}
 
-        variables.update(self.variables_data.get(service_set, {}))
-        variables.update(self.variables_data.get("{}/{}".format(service_set, component), {}))
+        object_merge(self.variables_data.get(service_set, {}), variables)
+        object_merge(self.variables_data.get("{}/{}".format(service_set, component), {}), variables)
 
         # ocdeployer adds the "NAMESPACE" parameter by default at deploy time
         variables["parameters"].update({"NAMESPACE": self.project_name})

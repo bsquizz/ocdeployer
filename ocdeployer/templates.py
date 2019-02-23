@@ -161,23 +161,25 @@ class Template(object):
         for param_name, param_value in parameters.items():
             params_and_vals[param_name] = "{}={}".format(param_name, param_value)
 
-        log.info(
-            "Running 'oc process' on template '%s' with parameters '%s'",
-            self.file_name,
-            ", ".join([string for _, string in params_and_vals.items()]),
-        )
-
         extra_args = []
         # Only insert the parameter if it was defined in the template
         param_names_defined_in_template = [
             param.get("name") for param in content.get("parameters", [])
         ]
         skipped_params = []
+        params_and_vals_used = []
         for param_name, string in params_and_vals.items():
             if param_name in param_names_defined_in_template:
                 extra_args.extend(["-p", string])
+                params_and_vals_used.append(string)
             else:
                 skipped_params.append(param_name)
+
+        log.info(
+            "Running 'oc process' on template '%s' with parameters '%s'",
+            self.file_name,
+            ", ".join([string for string in params_and_vals_used]),
+        )
 
         if skipped_params:
             log.warning(
