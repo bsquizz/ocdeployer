@@ -6,6 +6,7 @@ import importlib
 import logging
 import os
 import sys
+import yaml
 
 from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded, get_json
 from .secrets import SecretImporter
@@ -68,7 +69,7 @@ def deploy_components(
         template.process(variables_per_component.get(comp_name, {}), resources_scale_factor, label)
 
         if not template.processed_content:
-            log.info("Component %s has an empty template, skipping deploy...", comp_name)
+            log.info("Component %s has an empty template, skipping...", comp_name)
             templates_by_name.pop(comp_name)
             continue
 
@@ -82,6 +83,42 @@ def deploy_components(
     # Wait on all deployments
     if wait:
         wait_for_ready_threaded(deployments_to_wait_for, timeout=timeout, exit_on_err=True)
+
+    return templates_by_name
+
+
+def deploy_dry_run(
+    project_name,
+    template_dir,
+    components,
+    variables_per_component,
+    wait=False,
+    timeout=None,
+    resources_scale_factor=1.0,
+    label=None,
+):
+    """
+    Similar to deploy_components, but only processes the templates.
+
+    Does not actually push any config
+    """
+    deployments_to_wait_for = []
+
+    templates_by_name = get_templates_in_dir(template_dir)
+
+    for comp_name in components:
+        if comp_name not in templates_by_name:
+            raise ValueError(
+                "Component '{}' not found in template dir '{}'".format(comp_name, template_dir)
+            )
+
+        template = templates_by_name.get(comp_name)
+        template.process(variables_per_component.get(comp_name, {}), resources_scale_factor, label)
+
+        if not template.processed_content:
+            log.info("Component %s has an empty template, skipping...", comp_name)
+            templates_by_name.pop(comp_name)
+            continue
 
     return templates_by_name
 
@@ -178,6 +215,7 @@ class DeployRunner(object):
         specific_component=None,
         label=None,
         skip=None,
+        dry_run=False,
     ):
         self.template_dir = template_dir
         self.custom_dir = custom_dir
@@ -190,6 +228,7 @@ class DeployRunner(object):
         self.specific_component = specific_component
         self.label = label
         self.skip = skip
+        self.dry_run = dry_run
 
     def _get_variables(self, service_set, component):
         """
@@ -305,10 +344,17 @@ class DeployRunner(object):
         content = load_cfg_file(cfg_path)
         if not self.ignore_requires:
             self._check_requires(content, service_set)
-        _handle_secrets_and_imgs(content)
-        pre_deploy_func, deploy_func, post_deploy_func = _get_deploy_methods(
-            content, service_set, self.custom_dir
-        )
+
+        if self.dry_run:
+            log.info("Doing a DRY RUN of deployment")
+            pre_deploy_func, deploy_func, post_deploy_func = None, deploy_dry_run, None
+        else:
+            _handle_secrets_and_imgs(content)
+
+            pre_deploy_func, deploy_func, post_deploy_func = _get_deploy_methods(
+                content, service_set, self.custom_dir
+            )
+
         variables_per_component = self._get_variables_per_component(content, service_set)
 
         deploy_order = content.get("deploy_order", {})
@@ -357,8 +403,10 @@ class DeployRunner(object):
         self._deployed_service_sets = []
 
         content = load_cfg_file(os.path.join(self.template_dir, "_cfg.yml"))
-        _handle_secrets_and_imgs(content)
         deploy_order = content.get("deploy_order", {})
+
+        if not self.dry_run:
+            _handle_secrets_and_imgs(content)
 
         # Verify all service sets exist
         all_service_sets = []
@@ -372,6 +420,8 @@ class DeployRunner(object):
                     )
 
         # Deploy the service sets in proper order
+        all_processed_templates = {}
+
         for stage in sorted(deploy_order.keys()):
             service_sets = deploy_order[stage].get("components", [])
             for service_set in service_sets:
@@ -381,4 +431,11 @@ class DeployRunner(object):
                     )
                     continue
                 else:
-                    self._deploy_service_set(service_set)
+                    all_processed_templates[service_set] = self._deploy_service_set(service_set)
+
+        if self.dry_run:
+            for service_set, processed_templates in all_processed_templates.items():
+                for template_name, template_obj in processed_templates.items():
+                    if template_obj.processed_content:
+                        print("\n# {}/{}".format(service_set, template_name))
+                        print(yaml.dump(template_obj.processed_content, default_flow_style=False))

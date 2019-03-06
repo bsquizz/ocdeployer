@@ -134,6 +134,7 @@ def main():
 
 
 @main.command("deploy", help="Deploy to project")
+@click.option("--dry-run", "-d", is_flag=True, help="Does not run the deploy, only prints the processed templates to stdout")
 @click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
 @click.option(
     "--secrets-local-dir",
@@ -205,7 +206,11 @@ def deploy_to_project(
     pick,
     label,
     skip,
+    dry_run
 ):
+    if dry_run:
+        no_confirm = True
+
     if not template_dir:
         path = appdirs_path / "templates"
         template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "templates"
@@ -266,7 +271,8 @@ def deploy_to_project(
     else:
         variables_data = {}
 
-    switch_to_project(dst_project)
+    if not dry_run:
+        switch_to_project(dst_project)
 
     DeployRunner(
         template_dir,
@@ -279,9 +285,11 @@ def deploy_to_project(
         specific_component=specific_component,
         label=label,
         skip=skip.split(",") if skip else None,
+        dry_run=dry_run,
     ).run()
 
-    list_routes(dst_project)
+    if not dry_run:
+        list_routes(dst_project)
 
 
 @main.command("wipe", help="Delete everything from project")
