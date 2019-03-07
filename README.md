@@ -35,14 +35,20 @@ See the [examples](example/README.md) to get a better idea of how all of this co
 
 ## Installation and usage
 
-#### Installation
+### Installation
+You can install this package from pypi using:
+```
+$ pip install ocdeployer
+```
+
+Or, if you're installing from source, install into a virtual environment:
 ```
 $ python3 -m venv .venv
 $ . .venv/bin/activate
 (venv) $ pip install -r requirements.txt
 ```
 
-#### Command options
+### Usage
 ```
 (venv) $ ocdeployer -h
 Usage: ocdeployer [OPTIONS] COMMAND [ARGS]...
@@ -52,17 +58,21 @@ Usage: ocdeployer [OPTIONS] COMMAND [ARGS]...
   running the tool.
 
 Options:
-  --help  Show this message and exit.
+  -h, --help  Show this message and exit.
 
 Commands:
   cache        Used for updating or deleting local template cache
   deploy       Deploy to project
   list-routes  List routes currently in the project
   list-sets    List service sets available in template dir
+  process      Process templates but do not deploy
   wipe         Delete everything from project
 ```
 
-#### Deploy command options
+#### Deploy command
+The `deploy` command is used to push your templates into OpenShift.
+
+Command usage:
 ```
 (venv) $ ocdeployer deploy -h
 Usage: ocdeployer deploy [OPTIONS] DST_PROJECT
@@ -70,67 +80,57 @@ Usage: ocdeployer deploy [OPTIONS] DST_PROJECT
   Deploy to project
 
 Options:
-  -f, --no-confirm            Do not prompt for confirmation
-  --secrets-local-dir TEXT    Import secrets from local files in a directory
-                              (default ./secrets)
+  -a, --all                   Deploy all service sets
   -s, --sets TEXT             Comma,separated,list of specific service set
                               names to deploy
-  -a, --all                   Deploy all service sets
-  --secrets-src-project TEXT  Openshift project to import secrets from
-                              (default: secrets)
-  -e, --env-file TEXT         Path to parameters config file (default: None)
-  -t, --template-dir TEXT     Template directory (default ./templates)
-  -i, --ignore-requires TEXT  Ignore the 'requires' statement in config files
-                              and deploy anyway
-  --scale-resources FLOAT     Factor to scale configured cpu/memory resource
-                              requests/limits by
-  -u, --custom-dir TEXT       Custom deploy scripts directory (default
-                              ./custom)
   -p, --pick TEXT             Pick a single component from a service set and
                               deploy that.  E.g. '-p myset/myvm'
+  -k, --skip TEXT             Comma,separated,list of service_set/service_name
+                              to skip
+  -e, --env-file TEXT         Path to parameters config file (default: None).
+                              Use this option multiple times to concatenate
+                              config files
+  -t, --template-dir TEXT     Template directory (default 'templates')
+  --scale-resources FLOAT     Factor to scale configured cpu/memory resource
+                              requests/limits by
+  -f, --no-confirm            Do not prompt for confirmation
+  --secrets-local-dir TEXT    Import secrets from local files in a directory
+                              (default 'secrets')
+  --secrets-src-project TEXT  Openshift project to import secrets from
+                              (default: secrets)
+  -i, --ignore-requires       Ignore the 'requires' statement in config files
+                              and deploy anyway
+  -u, --custom-dir TEXT       Specify custom deploy scripts directory (default
+                              'custom')
   -l, --label TEXT            Adds a label to each deployed resource.  E.g.
                               '-l app=test'
   -h, --help                  Show this message and exit.
 ```
 
-#### Wipe command options
+#### Process command
+
+Use `process` to view the template data without actually deploying it. `process` has very similar options to `deploy`, but instead of pushing any configuration to OpenShift, it will simply parse the templates with jinja2 and openshift templating (i.e. `oc process`), substitute in the given variables/project name/etc., and then either print out the resulting configuration to stdout or save the resulting template files to a directory.
+
+#### Wipe command
+
+Use `wipe` to delete objects from a project. It essentially runs the following commands, deleting all objects or objects which have a specific label:
+
 ```
-(venv) $ ocdeployer wipe -h       
-Usage: ocdeployer wipe [OPTIONS] DST_PROJECT
-
-  Delete everything from project
-
-Options:
-  -f, --no-confirm  Do not prompt for confirmation
-  -l, --label TEXT  Delete only a specific label.  E.g. '-l app=test'
-  -h, --help        Show this message and exit.
-```
-
-#### Cache command options
-```
-(venv) $ ocdeployer cache -h
-Usage: ocdeployer cache [OPTIONS] COMMAND [ARGS]...
-
-  Used for updating or deleting local template cache
-
-Options:
-  -h, --help  Show this message and exit.
-
-Commands:
-  delete      Delete current template cache
-  initialize  Fetch new template cache
-  update      Update template cache files
-
-Commands Usage: ocdeployer cache delete/initialize/update
- [OPTIONS]
-
-Options:
-  -i, --install-dir TEXT  Location to store cached templates and configs
-  -h, --help              Show this message and exit.
+oc delete all [--all or --selector mylabel=myvalue]
+oc delete configmap [--all or --selector mylabel=myvalue]
+oc delete secret [--all or --selector mylabel=myvalue]
+oc delete pvc [--all or --selector mylabel=myvalue]
 ```
 
+#### List-routes command
 
-### Template cache
+Use `list-routes` to simply print the URLs for active routes in a project
+
+#### List-sets command
+
+Use `list-sets` to simply print the names of service sets that are available for deployment in your templates directory.
+
+#### Cache command
 
 The `cache` command provides a shortcut method to store a git repository of templates in your local application cache folder. If the cache has been initialized and the folder exists, `ocdeployer` uses this folder as its default location instead of the current working directory.
 
@@ -149,8 +149,8 @@ The implementation uses the `appdirs` cache folder, therefore...
 
 Note these defaults are only used IF the cache directory for `ocdeployer` is present.
 
-
-### Template Configuration
+---
+## Template Configuration
 
 The best way to explain how template configuration works is to describe the process for configuring a service set.
 
@@ -234,7 +234,7 @@ The best way to explain how template configuration works is to describe the proc
 
 ### Custom Deploy Logic
 
-By default, no pre_deploy/post_deploy is run, and the deploy logic is taken care of by the `ocdeployer.deploy.deploy_components` method. So, unless you are doing something complicated and require additional "python scripting" to handle your (pre/post)deploy logic, you don't need to worry about custom logic.
+By default, no pre_deploy/post_deploy is run, and the deploy logic is taken care of by the `ocdeployer.deploy.deploy_components` method. So, unless you are doing something complicated and require additional "python scripting" to handle your (pre/post)deploy logic, you don't need to worry about custom logic (and it's quite rare that you'd want to re-write the main deploy logic itself)
 
 But let's say you want to perform some tasks prior to deploying your components, or after deploying your components. Custom scripts can be useful for this.
 
@@ -362,8 +362,8 @@ file with more detailed variable information. Here is an example:
 
 ```yaml
 global:
-  # Values defined outside of the "parameters" section are evaluated by jinja2 processing
-  VAR0: false
+  # Values defined outside of the "parameters" section are intended to be evaluated during jinja2 processing
+  some_var: false
   parameters:
     # Values defined as "parameters" are evaluated by 'oc process' as OpenShift template parameters
     VAR1: "applies to all components"
