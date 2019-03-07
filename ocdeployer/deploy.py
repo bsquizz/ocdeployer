@@ -3,6 +3,7 @@ Handles deploy logic for components
 """
 import copy
 import importlib
+import json
 import logging
 import os
 import sys
@@ -202,6 +203,40 @@ def _get_deploy_methods(config, service_set_name, custom_dir):
     return pre_deploy_method, deploy_method, post_deploy_method
 
 
+def generate_dry_run_content(all_processed_templates, output="yaml", to_dir=None):
+    """
+    Write processed template content to output directory, or print to stdout if no dir given.
+    """
+    if to_dir:
+        to_dir = os.path.abspath(to_dir)
+        try:
+            os.makedirs(to_dir, exist_ok=True)
+            log.info("Writing processed templates to output directory: %s", to_dir)
+        except OSError as exc:
+            log.error("Unable to create output directory '%s': %s", to_dir, str(exc))
+            return
+
+    for service_set, processed_templates in all_processed_templates.items():
+        for template_name, template_obj in processed_templates.items():
+            if template_obj.processed_content:
+                if output not in ["yaml", "json"]:
+                    output = "yaml"
+                if output == "yaml":
+                    text = yaml.dump(template_obj.processed_content, default_flow_style=False)
+                else:
+                    text = json.dumps(template_obj.processed_content, indent=2)
+
+                if to_dir:
+                    service_set_dir = os.path.join(to_dir, service_set)
+                    os.makedirs(service_set_dir, exist_ok=True)
+                    file_path = os.path.join(service_set_dir, "{}.{}".format(template_name, output))
+                    with open(file_path, "w") as f:
+                        f.write(text)
+                else:
+                    print("\n# {}/{}".format(service_set, template_name))
+                    print(text)
+
+
 class DeployRunner(object):
     def __init__(
         self,
@@ -216,6 +251,7 @@ class DeployRunner(object):
         label=None,
         skip=None,
         dry_run=False,
+        dry_run_opts=None,
     ):
         self.template_dir = template_dir
         self.custom_dir = custom_dir
@@ -229,6 +265,7 @@ class DeployRunner(object):
         self.label = label
         self.skip = skip
         self.dry_run = dry_run
+        self.dry_run_opts = dry_run_opts or {}
 
     def _get_variables(self, service_set, component):
         """
@@ -434,8 +471,4 @@ class DeployRunner(object):
                     all_processed_templates[service_set] = self._deploy_service_set(service_set)
 
         if self.dry_run:
-            for service_set, processed_templates in all_processed_templates.items():
-                for template_name, template_obj in processed_templates.items():
-                    if template_obj.processed_content:
-                        print("\n# {}/{}".format(service_set, template_name))
-                        print(yaml.dump(template_obj.processed_content, default_flow_style=False))
+            generate_dry_run_content(all_processed_templates, **self.dry_run_opts)

@@ -133,104 +133,64 @@ def main():
     pass
 
 
-@main.command("deploy", help="Deploy to project")
-@click.option("--dry-run", "-d", is_flag=True, help="Does not run the deploy, only prints the processed templates to stdout")
-@click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
-@click.option(
-    "--secrets-local-dir",
-    default=None,
-    help="Import secrets from local files in a directory (default 'appdirs'/secrets)",
-)
-@click.option("--sets", "-s", help="Comma,separated,list of specific service set names to deploy")
-@click.option("--all", "-a", "all_services", is_flag=True, help="Deploy all service sets")
-@click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip")
-@click.option(
-    "--secrets-src-project",
-    default="secrets",
-    help="Openshift project to import secrets from (default: secrets)",
-)
-@click.option(
-    "--env-file",
-    "-e",
-    "env_files",
-    help=(
-        "Path to parameters config file (default: None)."
-        "  Use this option multiple times to concatenate config files"
+# Options shared by both the "deploy" command and the "process" command
+_common_options = [
+    click.option("--all", "-a", "all_services", is_flag=True, help="Deploy all service sets"),
+    click.option(
+        "--sets", "-s", help="Comma,separated,list of specific service set names to deploy"
     ),
-    multiple=True,
-)
-@click.option("--template-dir", "-t", default=None, help="Template directory (default ./templates)")
-@click.option(
-    "--ignore-requires",
-    "-i",
-    is_flag=True,
-    help="Ignore the 'requires' statement in config files and deploy anyway",
-)
-@click.option(
-    "--scale-resources",
-    type=float,
-    default=1.0,
-    help="Factor to scale configured cpu/memory resource requests/limits by",
-)
-@click.option(
-    "--custom-dir",
-    "-u",
-    default=None,
-    help="Custom deploy scripts directory (default 'appdirs'/custom)",
-)
-@click.option(
-    "--pick",
-    "-p",
-    default=None,
-    help="Pick a single component from a service" " set and deploy that.  E.g. '-p myset/myvm'",
-)
-@click.option(
-    "--label",
-    "-l",
-    default=None,
-    help="Adds a label to each deployed resource.  E.g. '-l app=test'",
-)
-@click.argument("dst_project")
-def deploy_to_project(
-    dst_project,
-    no_confirm,
-    secrets_local_dir,
-    sets,
-    all_services,
-    secrets_src_project,
-    env_files,
-    template_dir,
-    ignore_requires,
-    scale_resources,
-    custom_dir,
-    pick,
-    label,
-    skip,
-    dry_run
-):
-    if dry_run:
-        no_confirm = True
+    click.option(
+        "--pick",
+        "-p",
+        default=None,
+        help="Pick a single component from a service" " set and deploy that.  E.g. '-p myset/myvm'",
+    ),
+    click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"),
+    click.option(
+        "--env-file",
+        "-e",
+        "env_files",
+        help=(
+            "Path to parameters config file (default: None)."
+            "  Use this option multiple times to concatenate config files"
+        ),
+        multiple=True,
+    ),
+    click.option(
+        "--template-dir", "-t", default=None, help="Template directory (default 'templates')"
+    ),
+    click.option(
+        "--scale-resources",
+        type=float,
+        default=1.0,
+        help="Factor to scale configured cpu/memory resource requests/limits by",
+    ),
+]
 
+
+def common_options(func):
+    """Click decorator used for common options, shared by deploy and process commands."""
+    for option in reversed(_common_options):
+        func = option(func)
+    return func
+
+
+def output_option(func):
+    """Click decorator used for output option, shared by several commands."""
+    option = click.option(
+        "--output",
+        "-o",
+        default=None,
+        type=click.Choice(["yaml", "json"]),
+        help="Output data using yaml or json format",
+    )
+    return option(func)
+
+
+def _parse_common_args(template_dir, all_services, sets, pick, dst_project, env_files):
     if not template_dir:
         path = appdirs_path / "templates"
         template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "templates"
-
-    if not custom_dir:
-        path = appdirs_path / "custom"
-        custom_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "custom"
-
-    if not secrets_local_dir:
-        path = appdirs_path / "secrets"
-        secrets_local_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "secrets"
-
-    if not dst_project:
-        log.error("Error: no destination project given")
-        sys.exit(1)
-
-    verify_label(label)
-
-    SecretImporter.local_dir = secrets_local_dir
-    SecretImporter.source_project = secrets_src_project
 
     template_dir = os.path.abspath(template_dir)
 
@@ -262,17 +222,131 @@ def deploy_to_project(
             ", ".join(sets_selected), dst_project
         )
 
-    if not no_confirm and not prompter.yesno(confirm_msg):
-        log.info("Aborted by user")
-        sys.exit(0)
-
     if env_files:
         variables_data = get_variables_data(env_files)
     else:
         variables_data = {}
 
-    if not dry_run:
-        switch_to_project(dst_project)
+    return template_dir, specific_component, sets_selected, variables_data, confirm_msg
+
+
+@main.command("process", help="Process templates but do not deploy")
+@common_options
+@output_option
+@click.option(
+    "--to-dir",
+    default=None,
+    help="Save processed templates to specific output directory (default: print to stdout)",
+)
+@click.argument("dst_project")
+def deploy_dry_run(
+    dst_project,
+    sets,
+    all_services,
+    env_files,
+    template_dir,
+    scale_resources,
+    pick,
+    skip,
+    output,
+    to_dir,
+):
+    template_dir, specific_component, sets_selected, variables_data, _ = _parse_common_args(
+        template_dir, all_services, sets, pick, dst_project, env_files
+    )
+
+    # No need to set up SecretImporter, it won't be used in a dry run
+
+    DeployRunner(
+        template_dir,
+        dst_project,
+        variables_data,
+        ignore_requires=True,  # ignore for a dry run
+        service_sets_selected=sets_selected,
+        resources_scale_factor=scale_resources,
+        custom_dir=None,  # won't be used in a dry run
+        specific_component=specific_component,
+        label=None,
+        skip=skip.split(",") if skip else None,
+        dry_run=True,
+        dry_run_opts={"output": output, "to_dir": to_dir},
+    ).run()
+
+
+@main.command("deploy", help="Deploy to project")
+@common_options
+@click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
+@click.option(
+    "--secrets-local-dir",
+    default=None,
+    help="Import secrets from local files in a directory (default 'secrets')",
+)
+@click.option(
+    "--secrets-src-project",
+    default="secrets",
+    help="Openshift project to import secrets from (default: secrets)",
+)
+@click.option(
+    "--ignore-requires",
+    "-i",
+    is_flag=True,
+    help="Ignore the 'requires' statement in config files and deploy anyway",
+)
+@click.option(
+    "--custom-dir",
+    "-u",
+    default=None,
+    help="Specify custom deploy scripts directory (default 'custom')",
+)
+@click.option(
+    "--label",
+    "-l",
+    default=None,
+    help="Adds a label to each deployed resource.  E.g. '-l app=test'",
+)
+@click.argument("dst_project")
+def deploy_to_project(
+    dst_project,
+    no_confirm,
+    secrets_local_dir,
+    sets,
+    all_services,
+    secrets_src_project,
+    env_files,
+    template_dir,
+    ignore_requires,
+    scale_resources,
+    custom_dir,
+    pick,
+    label,
+    skip,
+):
+    if not custom_dir:
+        path = appdirs_path / "custom"
+        custom_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "custom"
+
+    if not secrets_local_dir:
+        path = appdirs_path / "secrets"
+        secrets_local_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "secrets"
+
+    if not dst_project:
+        log.error("Error: no destination project given")
+        sys.exit(1)
+
+    verify_label(label)
+
+    SecretImporter.local_dir = secrets_local_dir
+    SecretImporter.source_project = secrets_src_project
+
+    template_dir, specific_component, sets_selected, variables_data, confirm_msg = _parse_common_args(
+        template_dir, all_services, sets, pick, dst_project, env_files
+    )
+
+    if not no_confirm and not prompter.yesno(confirm_msg):
+        log.info("Aborted by user")
+        sys.exit(0)
+
+    switch_to_project(dst_project)
 
     DeployRunner(
         template_dir,
@@ -285,11 +359,10 @@ def deploy_to_project(
         specific_component=specific_component,
         label=label,
         skip=skip.split(",") if skip else None,
-        dry_run=dry_run,
+        dry_run=False,
     ).run()
 
-    if not dry_run:
-        list_routes(dst_project)
+    list_routes(dst_project)
 
 
 @main.command("wipe", help="Delete everything from project")
@@ -305,13 +378,7 @@ def wipe_project(no_confirm, dst_project, label):
 
 @main.command("list-routes", help="List routes currently in the project")
 @click.argument("dst_project")
-@click.option(
-    "--output",
-    "-o",
-    default=None,
-    type=click.Choice(["yaml", "json"]),
-    help="When listing parameters, print output in yaml or json format",
-)
+@output_option
 def list_act_routes(dst_project, output):
     return list_routes(dst_project, output)
 
@@ -323,13 +390,7 @@ def list_act_routes(dst_project, output):
     default=appdirs_path / "templates",
     help="Template directory (default 'appdirs'/templates)",
 )
-@click.option(
-    "--output",
-    "-o",
-    default=None,
-    type=click.Choice(["yaml", "json"]),
-    help="When listing parameters, print output in yaml or json format",
-)
+@output_option
 def list_act_sets(template_dir, output):
     return list_sets(template_dir, output)
 
