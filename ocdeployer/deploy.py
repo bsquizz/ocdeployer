@@ -59,6 +59,7 @@ def deploy_components(
     deployments_to_wait_for = []
 
     templates_by_name = get_templates_in_dir(template_dir)
+    processed_templates_by_name = {}
 
     for comp_name in components:
         if comp_name not in templates_by_name:
@@ -71,8 +72,9 @@ def deploy_components(
 
         if not template.processed_content:
             log.info("Component %s has an empty template, skipping...", comp_name)
-            templates_by_name.pop(comp_name)
             continue
+
+        processed_templates_by_name[comp_name] = template
 
         log.info("Deploying component '%s'", comp_name)
         oc("apply", "-f", "-", "-n", project_name, _in=template.dump_processed_json())
@@ -85,7 +87,7 @@ def deploy_components(
     if wait:
         wait_for_ready_threaded(deployments_to_wait_for, timeout=timeout, exit_on_err=True)
 
-    return templates_by_name
+    return processed_templates_by_name
 
 
 def deploy_dry_run(
@@ -106,6 +108,7 @@ def deploy_dry_run(
     deployments_to_wait_for = []
 
     templates_by_name = get_templates_in_dir(template_dir)
+    processed_templates_by_name = {}
 
     for comp_name in components:
         if comp_name not in templates_by_name:
@@ -118,10 +121,11 @@ def deploy_dry_run(
 
         if not template.processed_content:
             log.info("Component %s has an empty template, skipping...", comp_name)
-            templates_by_name.pop(comp_name)
             continue
 
-    return templates_by_name
+        processed_templates_by_name[comp_name] = template
+
+    return processed_templates_by_name
 
 
 DEFAULT_DEPLOY_METHODS = (None, deploy_components, None)
@@ -218,7 +222,9 @@ def generate_dry_run_content(all_processed_templates, output="yaml", to_dir=None
 
     for service_set, processed_templates in all_processed_templates.items():
         for template_name, template_obj in processed_templates.items():
-            if template_obj.processed_content:
+            if not template_obj.processed_content:
+                log.warning("Template '%s' had no processed content", template_name)
+            else:
                 if output not in ["yaml", "json"]:
                     output = "yaml"
                 if output == "yaml":
