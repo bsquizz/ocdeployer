@@ -296,13 +296,12 @@ class DeployRunner(object):
         Returns:
             dict of variables/values to apply to this specific component
         """
-        variables = copy.deepcopy(self.variables_data.get("global", {}))
-
+        variables = copy.deepcopy(self.variables_data.get("{}/{}".format(service_set, component), {}))
         if "parameters" not in variables:
             variables["parameters"] = {}
 
         object_merge(self.variables_data.get(service_set, {}), variables)
-        object_merge(self.variables_data.get("{}/{}".format(service_set, component), {}), variables)
+        object_merge(self.variables_data.get("global", {}), variables)
 
         # ocdeployer adds the "NAMESPACE" parameter by default at deploy time
         variables["parameters"].update({"NAMESPACE": self.project_name})
