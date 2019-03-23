@@ -445,12 +445,13 @@ def no_pods_running(dc_name):
     return not all_pods_running(dc_name)
 
 
-def stop_deployment(dc_name):
+def stop_deployment(dc_name, timeout=180):
     """
     Pause a deployment, delete all of its replication controllers, wait for all pods to shut down
     """
     if not any_pods_running(dc_name):
         log.info("No pods running for dc '%s', nothing to stop", dc_name)
+        return
 
     log.info("Patching deployment config for '%s' to pause rollouts", dc_name)
     try:
@@ -472,7 +473,7 @@ def stop_deployment(dc_name):
         no_pods_running,
         func_args=(dc_name,),
         message="wait for deployment '{}' to be terminated".format(dc_name),
-        timeout=180,
+        timeout=timeout,
         delay=5,
         log_on_loop=True,
     )
@@ -483,7 +484,7 @@ def dc_ready(dc_name):
     return _check_status_for_restype("dc", dc_json) and all_pods_running(dc_name)
 
 
-def start_deployment(dc_name):
+def start_deployment(dc_name, timeout=180):
     if dc_ready(dc_name):
         log.info("Deployment '%s' already deployed and running, skipping deploy for it", dc_name)
         return
@@ -508,6 +509,6 @@ def start_deployment(dc_name):
         func_args=(dc_name,),
         message="wait for deployment '{}' to be ready".format(dc_name),
         delay=5,
-        timeout=180,
+        timeout=timeout,
         log_on_loop=True,
     )
