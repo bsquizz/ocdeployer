@@ -165,31 +165,37 @@ def _get_custom_methods(service_set, custom_dir):
     Look for custom deploy module and import its methods.
     """
     try:
-        sys.path.insert(0, custom_dir)
+        sys.path.insert(0, str(custom_dir))
         module = importlib.import_module("deploy_{}".format(service_set))
-        log.info("Custom script found for component '%s'", service_set)
+        log.info("Custom script found for service set '%s'", service_set)
     except ImportError:
+        log.exception("Error loading custom deploy script, using default deploy methods")
         return DEFAULT_DEPLOY_METHODS
 
     pre_deploy_method = deploy_method = post_deploy_method = None
 
     try:
         pre_deploy_method = getattr(module, "pre_deploy")
-        log.info("Custom pre_deploy() found for component '%s'", service_set)
+        log.info("Custom pre_deploy() found for service set '%s'", service_set)
     except AttributeError:
         pre_deploy_method = None
 
     try:
         deploy_method = getattr(module, "deploy")
-        log.info("Custom deploy() method found for component '%s'", service_set)
+        log.info("Custom deploy() method found for service set '%s'", service_set)
     except AttributeError:
         deploy_method = deploy_components
 
     try:
         post_deploy_method = getattr(module, "post_deploy")
-        log.info("Custom post_deploy() method found for component '%s'", service_set)
+        log.info("Custom post_deploy() method found for service set '%s'", service_set)
     except AttributeError:
         post_deploy_method = None
+
+    log.info(
+        "Service set '%s' custom pre_deploy(): %s, using deploy():, using post_deploy(): %s",
+        service_set, bool(pre_deploy_method), bool(deploy_method), bool(post_deploy_method)
+    )
 
     return pre_deploy_method, deploy_method, post_deploy_method
 
