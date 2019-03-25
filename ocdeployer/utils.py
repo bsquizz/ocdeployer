@@ -115,7 +115,7 @@ def oc(*args, **kwargs):
         _reraise: if ErrorReturnCode is hit, don't exit, re-raise it
         _exit_on_err: sys.exit(1) if this command fails (default True)
         _silent: don't print command or resulting stdout (default False)
-        _ignore_immutable: ignore errors related to immutable objects (default True) 
+        _ignore_immutable: ignore errors related to immutable objects (default True)
 
     Returns:
         None if cmd fails and _exit_on_err is False
@@ -161,7 +161,7 @@ def oc(*args, **kwargs):
         return sh.oc(
             *args, **kwargs, _tee=True, _out=_out_line_handler, _err=_err_line_handler
         ).wait()
-    except ErrorReturnCode as err:
+    except ErrorReturnCode:
         immutable_errors_only = False
 
         # Ignore warnings that are printed to stderr
@@ -186,7 +186,7 @@ def oc(*args, **kwargs):
 def switch_to_project(project):
     try:
         oc("get", "project", project, _reraise=True)
-    except ErrorReturnCode as err:
+    except ErrorReturnCode:
         log.error("Unable to get project '%s', trying to create it...", project)
         oc("new-project", project, _exit_on_err=True)
     oc("project", project, _exit_on_err=True)

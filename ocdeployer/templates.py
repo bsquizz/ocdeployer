@@ -8,9 +8,8 @@ import re
 import yaml
 
 from jinja2 import Template as Jinja2Template
-import sh
 
-from .utils import oc, parse_restype, get_cfg_files_in_dir, load_cfg_file
+from .utils import oc, parse_restype, get_cfg_files_in_dir
 
 
 log = logging.getLogger(__name__)

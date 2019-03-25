@@ -1,0 +1,10 @@
+language: python
+python:
+  - "3.6"
+  - "3.7"
+cache: pip
+install:
+  - pip install -r requirements-test.txt
+script:
+  - flake8 --max-line-length 100 ocdeployer/* setup.py
+  - pytest
