@@ -187,7 +187,8 @@ def output_option(func):
     return option(func)
 
 
-def _parse_common_args(template_dir, all_services, sets, pick, dst_project, env_files):
+def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
+    """Parses args common to 'process' and 'deploy'."""
     if not template_dir:
         path = appdirs_path / "templates"
         template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "templates"
@@ -251,7 +252,7 @@ def deploy_dry_run(
     output,
     to_dir,
 ):
-    template_dir, specific_component, sets_selected, variables_data, _ = _parse_common_args(
+    template_dir, specific_component, sets_selected, variables_data, _ = _parse_args(
         template_dir, all_services, sets, pick, dst_project, env_files
     )
 
@@ -338,7 +339,7 @@ def deploy_to_project(
     SecretImporter.local_dir = secrets_local_dir
     SecretImporter.source_project = secrets_src_project
 
-    template_dir, specific_component, sets_selected, variables_data, confirm_msg = _parse_common_args(
+    template_dir, specific_component, sets_selected, variables_data, confirm_msg = _parse_args(
         template_dir, all_services, sets, pick, dst_project, env_files
     )
 

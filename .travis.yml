@@ -1,0 +1,12 @@
+language: python
+dist: xenial
+sudo: required
+python:
+  - "3.6"
+  - "3.7"
+cache: pip
+install:
+  - pip install -r requirements-test.txt
+script:
+  - flake8 --max-line-length 100 ocdeployer/* tests/* setup.py
+  - pytest

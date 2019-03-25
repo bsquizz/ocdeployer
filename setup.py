@@ -6,7 +6,10 @@ with open("README.md", "r") as fh:
 setup(
     name="ocdeployer",
     use_scm_version=True,
-    description="A tool which wraps the OpenShift command line tools to enable repeatable automated deployment of OpenShift templates",
+    description=(
+        "A tool which wraps the OpenShift command line tools to enable repeatable automated"
+        " deployment of OpenShift templates"
+    ),
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="MIT",

@@ -9,7 +9,7 @@ import os
 import sys
 import yaml
 
-from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded, get_json
+from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
 
@@ -105,8 +105,6 @@ def deploy_dry_run(
 
     Does not actually push any config
     """
-    deployments_to_wait_for = []
-
     templates_by_name = get_templates_in_dir(template_dir)
     processed_templates_by_name = {}
 
@@ -194,7 +192,10 @@ def _get_custom_methods(service_set, custom_dir):
 
     log.info(
         "Service set '%s' custom pre_deploy(): %s, using deploy():, using post_deploy(): %s",
-        service_set, bool(pre_deploy_method), bool(deploy_method), bool(post_deploy_method)
+        service_set,
+        bool(pre_deploy_method),
+        bool(deploy_method),
+        bool(post_deploy_method),
     )
 
     return pre_deploy_method, deploy_method, post_deploy_method
@@ -302,7 +303,9 @@ class DeployRunner(object):
         Returns:
             dict of variables/values to apply to this specific component
         """
-        variables = copy.deepcopy(self.variables_data.get("{}/{}".format(service_set, component), {}))
+        variables = copy.deepcopy(
+            self.variables_data.get("{}/{}".format(service_set, component), {})
+        )
         if "parameters" not in variables:
             variables["parameters"] = {}
 
