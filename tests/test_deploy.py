@@ -1,7 +1,4 @@
-import ocdeployer
 import ocdeployer.deploy
-
-import pytest
 
 
 def runner(variables_data):

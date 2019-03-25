@@ -1,7 +1,4 @@
-import ocdeployer
 import ocdeployer.utils as utils
-
-import pytest
 
 
 def test_object_merge_merges_lists():
