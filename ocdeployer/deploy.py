@@ -191,7 +191,7 @@ def _get_custom_methods(service_set, custom_dir):
         post_deploy_method = None
 
     log.info(
-        "Service set '%s' custom pre_deploy(): %s, using deploy():, using post_deploy(): %s",
+        "Service set '%s' custom pre_deploy(): %s, custom deploy(): %s, custom post_deploy(): %s",
         service_set,
         bool(pre_deploy_method),
         bool(deploy_method),
@@ -338,17 +338,17 @@ class DeployRunner(object):
                     )
                 )
 
-    def _deploy_stage(
-        self, deploy_func, variables_per_component, stage, deploy_order, service_set, dir_path
+    def _enter_stage(
+        self,
+        deploy_func,
+        components,
+        variables_per_component,
+        stage,
+        deploy_order,
+        service_set,
+        dir_path,
     ):
         log.info("Entering stage '%s' of config in service set '%s'", stage, service_set)
-
-        # Collect the components defined in this stage
-        if self.specific_component:
-            # If a single component has been 'picked', just deploy that one
-            components = [self.specific_component]
-        else:
-            components = deploy_order[stage].get("components", [])
 
         # If a component has been skipped, remove it from our component list
         if self.skip:
@@ -381,6 +381,33 @@ class DeployRunner(object):
             label=self.label,
         )
         return processed_templates_this_stage
+
+    def _deploy_stage(
+        self, deploy_func, variables_per_component, stage, deploy_order, service_set, dir_path
+    ):
+        components = deploy_order[stage].get("components", [])
+        if self.specific_component:
+            if self.specific_component in components:
+                # If a single component has been 'picked', deploy only that one
+                components = [self.specific_component]
+            else:
+                # If the single component is not in this stage, do not run deploy for this stage
+                log.info(
+                    "Skipping stage '%s', component '%s' is not part of this stage",
+                    stage,
+                    self.specific_component,
+                )
+                return {}
+
+        return self._enter_stage(
+            deploy_func,
+            components,
+            variables_per_component,
+            stage,
+            deploy_order,
+            service_set,
+            dir_path,
+        )
 
     def _deploy_service_set(self, service_set):
         log.info("Handling config for service set '%s'", service_set)
