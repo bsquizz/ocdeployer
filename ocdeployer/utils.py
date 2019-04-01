@@ -58,6 +58,7 @@ def object_merge(old, new):
                 new[key] = value
             else:
                 object_merge(value, new[key])
+    return new
 
 
 def parse_restype(string):

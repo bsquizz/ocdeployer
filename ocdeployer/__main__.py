@@ -102,7 +102,7 @@ def get_variables_data(variables_files):
     if len(variables_files) > 1:
         for var_file in variables_files[1:]:
             merged_file_data = load_cfg_file(var_file)
-            object_merge(merged_file_data, variables_data)
+            variables_data = object_merge(variables_data, merged_file_data)
 
     # Check if there's any variables we need to prompt for
     for section, data in variables_data.items():
