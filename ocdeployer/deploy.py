@@ -309,8 +309,8 @@ class DeployRunner(object):
         if "parameters" not in variables:
             variables["parameters"] = {}
 
-        object_merge(self.variables_data.get(service_set, {}), variables)
-        object_merge(self.variables_data.get("global", {}), variables)
+        variables = object_merge(self.variables_data.get(service_set, {}), variables)
+        variables = object_merge(self.variables_data.get("global", {}), variables)
 
         # ocdeployer adds the "NAMESPACE" parameter by default at deploy time
         variables["parameters"].update({"NAMESPACE": self.project_name})
