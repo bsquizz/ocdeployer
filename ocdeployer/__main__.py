@@ -75,10 +75,16 @@ def list_routes(project, output=None):
 
 def all_sets(template_dir):
     try:
-        stages = load_cfg_file(f'{template_dir}/_cfg.yml')['deploy_order']
-    except ValueError as err:
-        log.error("Error: template dir '%s' invalid: %s", template_dir, str(err))
-        sys.exit(1)
+        cfg_data = load_cfg_file(f'{template_dir}/_cfg.yaml')
+    except ValueError:
+        try:
+            cfg_data = load_cfg_file(f'{template_dir}/_cfg.yml')
+        except ValueError as err:
+            log.error("Error: template dir '%s' invalid: %s", template_dir, str(err))
+            sys.exit(1)
+
+    try:
+        stages = cfg_data['deploy_order']
     except KeyError:
         log.error("Error: template dir '%s' invalid: _cfg file has no 'deploy_order'")
         sys.exit(1)
