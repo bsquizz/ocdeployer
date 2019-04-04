@@ -11,6 +11,7 @@ import subprocess
 import sys
 import re
 import shutil
+from functools import reduce
 
 import prompter
 import yaml
@@ -74,19 +75,26 @@ def list_routes(project, output=None):
 
 def all_sets(template_dir):
     try:
-        walk = next(os.walk(template_dir))
-    except StopIteration:
-        log.error("Error: template dir '%s' invalid", template_dir)
+        stages = load_cfg_file(f'{template_dir}/_cfg.yml')['deploy_order']
+    except ValueError as err:
+        log.error("Error: template dir '%s' invalid: %s", template_dir, str(err))
+        sys.exit(1)
+    except KeyError:
+        log.error("Error: template dir '%s' invalid: _cfg file has no 'deploy_order'")
         sys.exit(1)
 
-    return walk[1]
+    sets = reduce(
+        lambda acc, s: acc + s.get('components', []), stages.values(), []
+    )
+
+    return sets
 
 
 def list_sets(template_dir, output=None):
     as_dict = {"service_sets": all_sets(template_dir)}
 
     if not output:
-        log.info("Available service sets: %s", as_dict["service_sets"])
+        log.info("Available service sets:\n * %s", "\n * ".join(as_dict["service_sets"]))
 
     elif output == "json":
         print(json.dumps(as_dict, indent=2))
@@ -388,11 +396,14 @@ def list_act_routes(dst_project, output):
 @click.option(
     "--template-dir",
     "-t",
-    default=appdirs_path / "templates",
-    help="Template directory (default 'appdirs'/templates)",
+    default=None,
+    help="Template directory (default 'templates')",
 )
 @output_option
 def list_act_sets(template_dir, output):
+    if template_dir is None:
+        path = appdirs_path / "templates"
+        template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "templates"
     return list_sets(template_dir, output)
 
 
