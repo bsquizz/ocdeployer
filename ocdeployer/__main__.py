@@ -11,6 +11,7 @@ import subprocess
 import sys
 import re
 import shutil
+from functools import reduce
 
 import prompter
 import yaml
@@ -74,12 +75,16 @@ def list_routes(project, output=None):
 
 def all_sets(template_dir):
     try:
-        walk = next(os.walk(template_dir))
-    except StopIteration:
+        stages = load_cfg_file(f'{template_dir}/_cfg.yml')['deploy_order']
+    except KeyError, ValueError:
         log.error("Error: template dir '%s' invalid", template_dir)
         sys.exit(1)
 
-    return walk[1]
+    sets = reduce(
+        lambda acc, s: acc + s.get('components', []), stages.values(), []
+    )
+
+    return sets
 
 
 def list_sets(template_dir, output=None):
