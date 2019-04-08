@@ -8,6 +8,7 @@ import threading
 import time
 import os
 import yaml
+from functools import reduce
 
 import sh
 from sh import ErrorReturnCode
@@ -106,6 +107,27 @@ def load_cfg_file(path):
         raise ValueError("File '{}' is empty!".format(path))
 
     return content
+
+
+def all_sets(template_dir):
+    try:
+        cfg_data = load_cfg_file(f"{template_dir}/_cfg.yaml")
+    except ValueError:
+        try:
+            cfg_data = load_cfg_file(f"{template_dir}/_cfg.yml")
+        except ValueError as err:
+            log.error("Error: template dir '%s' invalid: %s", template_dir, str(err))
+            sys.exit(1)
+
+    try:
+        stages = cfg_data["deploy_order"]
+    except KeyError:
+        log.error("Error: template dir '%s' invalid: _cfg file has no 'deploy_order'")
+        sys.exit(1)
+
+    sets = reduce(lambda acc, s: acc + s.get("components", []), stages.values(), [])
+
+    return sets
 
 
 def oc(*args, **kwargs):
