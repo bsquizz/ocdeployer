@@ -7,6 +7,7 @@ import logging
 import re
 import yaml
 
+from cached_property import cached_property
 from jinja2 import Template as Jinja2Template
 
 from .utils import oc, parse_restype, get_cfg_files_in_dir
@@ -139,6 +140,11 @@ class Template(object):
         self.file_name, self.file_extension = os.path.splitext(self.path)
         self.processed_content = {}
 
+    @cached_property
+    def content(self):
+        with open(self.path, "r") as f:
+            return f.read()
+
     def _process_via_oc(self, content, parameters=None, label=None):
         """
         Run 'oc process' on the template and update content with the processed output
@@ -211,15 +217,14 @@ class Template(object):
 
     def _process_via_jinja2(self, variables):
         log.info("Rendering template '%s' with jinja2", self.file_name)
-        with open(self.path) as f:
-            template = Jinja2Template(f.read())
+        template = Jinja2Template(self.content)
         rendered_txt = template.render(**variables)
         if not rendered_txt.strip():
             log.info("Template '%s' is empty after jinja2 processing", self.file_name)
             return None
         return self._load_content(rendered_txt)
 
-    def process(self, variables, resources_scale_factor=1.0, label=None, engine="openshift"):
+    def process(self, variables, resources_scale_factor=1.0, label=None):
         # Run the template through jinja processing first
         jinjafied_content = self._process_via_jinja2(variables)
 

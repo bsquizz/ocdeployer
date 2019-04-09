@@ -11,12 +11,18 @@ import subprocess
 import sys
 import re
 import shutil
-from functools import reduce
 
 import prompter
 import yaml
 
-from ocdeployer.utils import object_merge, oc, load_cfg_file, get_routes, switch_to_project
+from ocdeployer.utils import (
+    all_sets,
+    object_merge,
+    oc,
+    load_cfg_file,
+    get_routes,
+    switch_to_project,
+)
 from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
 
@@ -71,29 +77,6 @@ def list_routes(project, output=None):
 
     elif output == "yaml":
         print(yaml.dump(route_data, default_flow_style=False))
-
-
-def all_sets(template_dir):
-    try:
-        cfg_data = load_cfg_file(f'{template_dir}/_cfg.yaml')
-    except ValueError:
-        try:
-            cfg_data = load_cfg_file(f'{template_dir}/_cfg.yml')
-        except ValueError as err:
-            log.error("Error: template dir '%s' invalid: %s", template_dir, str(err))
-            sys.exit(1)
-
-    try:
-        stages = cfg_data['deploy_order']
-    except KeyError:
-        log.error("Error: template dir '%s' invalid: _cfg file has no 'deploy_order'")
-        sys.exit(1)
-
-    sets = reduce(
-        lambda acc, s: acc + s.get('components', []), stages.values(), []
-    )
-
-    return sets
 
 
 def list_sets(template_dir, output=None):
@@ -399,12 +382,7 @@ def list_act_routes(dst_project, output):
 
 
 @main.command("list-sets", help="List service sets available in template dir")
-@click.option(
-    "--template-dir",
-    "-t",
-    default=None,
-    help="Template directory (default 'templates')",
-)
+@click.option("--template-dir", "-t", default=None, help="Template directory (default 'templates')")
 @output_option
 def list_act_sets(template_dir, output):
     if template_dir is None:
