@@ -1,4 +1,7 @@
 # ocdeployer
+
+[![Build Status](https://travis-ci.org/bsquizz/ocdeployer.svg?branch=master)](https://travis-ci.org/bsquizz/ocdeployer)
+
 A tool which wraps the OpenShift command line tools to enable repeatable automated deployment of OpenShift templates. Allows you to re-create environments based on templates more efficiently. Given a set of OpenShift templates, you can create a simple config that allows you to:
 
 * Repeatedly deploy the same templates to different OpenShift projects
