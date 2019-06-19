@@ -16,6 +16,10 @@ from .utils import oc, parse_restype, get_cfg_files_in_dir
 log = logging.getLogger(__name__)
 
 
+PARAM_REGEX = re.compile(r"(^.*)(\$\{\{\S+\}\})(.*$)", re.MULTILINE)
+RESOURCE_REGEX = re.compile(r"(\d+)(\.\d+)?([A-Za-z]+)?")
+
+
 def get_templates_in_dir(path):
     """
     Given a directory path, returns a dict with keys: template name, vals: Template instance
@@ -38,7 +42,7 @@ def _scale_val(val, scale_factor):
     * "2" scaled by .5 returns "1"
     * "200m" scaled by 2 returns "400m"
     """
-    match = re.match(r"(\d+)(\.\d+)?([A-Za-z]+)?", val)
+    match = RESOURCE_REGEX.match(val)
     if match:
         base_num, decimal, unit = match.groups()
     else:
@@ -140,10 +144,21 @@ class Template(object):
         self.file_name, self.file_extension = os.path.splitext(self.path)
         self.processed_content = {}
 
+    @staticmethod
+    def _jinja_safe(data):
+        """
+        Mark certain sections of text as "raw" for jinja processing
+
+        Example:
+        ${{PARAM}} is valid Open Shift template syntax, but by default jinja2
+        would evalulate this as a variable and replace this to "$"
+        """
+        return PARAM_REGEX.sub(r"\1{% raw %}\2{% endraw %}\3", data)
+
     @cached_property
     def content(self):
         with open(self.path, "r") as f:
-            return f.read()
+            return self._jinja_safe(f.read())
 
     def _process_via_oc(self, content, parameters=None, label=None):
         """
