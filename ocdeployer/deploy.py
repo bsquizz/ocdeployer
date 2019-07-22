@@ -47,7 +47,7 @@ def deploy_components(
             key: name of image stream (as it appears in 'oc get is')
             val: full name of image to import (e.g. the full 'docker pull' name)
         secrets (list of str) -- names of secrets this service set needs to have present
-        wait (boolean) -- wait for all deploymentConfigurations to be 'ready'
+        wait (boolean) -- wait for all deploymentConfigurations/builds to be 'ready'
         timeout (int) -- timeout to wait for all deploymentConfigurations to be 'ready'
         resources_scale_factor (float) -- factor to scale cpu/memory resource requests/limits by
         label (str) -- Label to apply to all deployed resources
@@ -57,6 +57,7 @@ def deploy_components(
         get_templates_in_dir()
     """
     deployments_to_wait_for = []
+    builds_to_wait_for = []
 
     templates_by_name = get_templates_in_dir(template_dir)
     processed_templates_by_name = {}
@@ -83,9 +84,17 @@ def deploy_components(
         for name in deployments:
             deployments_to_wait_for.append(("dc", name))
 
-    # Wait on all deployments
+        bcs = template.get_processed_names_for_restype("bc")
+        for name in bcs:
+            builds_to_wait_for.append(("bc", name))
+            log.info("Re-triggering builds for '%s'", name)
+            oc("cancel-build", "bc/{}".format(name), state="pending,new,running")
+            oc("start-build", "bc/{}".format(name))
+
+    # Wait on all deployments and builds
     if wait:
-        wait_for_ready_threaded(deployments_to_wait_for, timeout=timeout, exit_on_err=True)
+        items_to_wait_for = deployments_to_wait_for + builds_to_wait_for
+        wait_for_ready_threaded(items_to_wait_for, timeout=timeout, exit_on_err=True)
 
     return processed_templates_by_name
 
@@ -127,23 +136,6 @@ def deploy_dry_run(
 
 
 DEFAULT_DEPLOY_METHODS = (None, deploy_components, None)
-
-
-def post_deploy_trigger_builds(
-    processed_templates, project_name, template_dir, variables_per_component, timeout
-):
-    items_to_wait_for = []
-
-    for _, template in processed_templates.items():
-        bcs = template.get_processed_names_for_restype("bc")
-        for bc in bcs:
-            log.info("Re-triggering builds for '%s'", bc)
-            oc("cancel-build", "bc/{}".format(bc), state="pending,new,running")
-            oc("start-build", "bc/{}".format(bc))
-            items_to_wait_for.append(("bc", bc))
-
-    if timeout:
-        wait_for_ready_threaded(items_to_wait_for, timeout=timeout, exit_on_err=True)
 
 
 def _handle_secrets_and_imgs(config):
@@ -206,9 +198,6 @@ def _get_deploy_methods(config, service_set_name, custom_dir):
         pre_deploy_method, deploy_method, post_deploy_method = _get_custom_methods(
             service_set_name, custom_dir
         )
-    elif config.get("trigger_builds", False):
-        pre_deploy_method, deploy_method, post_deploy_method = DEFAULT_DEPLOY_METHODS
-        post_deploy_method = post_deploy_trigger_builds
     else:
         pre_deploy_method, deploy_method, post_deploy_method = DEFAULT_DEPLOY_METHODS
     return pre_deploy_method, deploy_method, post_deploy_method

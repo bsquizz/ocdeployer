@@ -6,7 +6,7 @@ A tool which wraps the OpenShift command line tools to enable repeatable automat
 
 * Repeatedly deploy the same templates to different OpenShift projects
 * Define the order in which they should deploy via 'stages'
-* Optionally wait for all deployments to reach 'active' state before continuing on to the next stage
+* Optionally wait for all deployments to reach 'active' state/wait for builds to succeed before continuing on to the next stage
 * Define which 'images' should be imported to the project
 * Define which secrets your services rely on, and import them either from a local dir, or from another project in OpenShift
 * Split the templates up into "service sets" and deploy all sets, or specific sets
@@ -180,12 +180,6 @@ The best way to explain how template configuration works is to describe the proc
     # service set that should be used
     custom_deploy_logic: true
 
-    # Indicates that any BuildConfigs deployed in these templates should be triggered
-    # in post-deploy. This is useful since there is no ConfigChange trigger which
-    # re-builds an existing BuildConfig. That that if custom_deploy_logic above is
-    # 'true', then the post-deploy logic that runs this step will be overriden
-    trigger_builds: false
-
     # Indicates how long post-deploy logic should take before timeout in sec
     # A null value can be handled differently depending on the post deploy logic,
     # but it is recommended that it means there is "no waiting" that will occur
@@ -208,7 +202,7 @@ The best way to explain how template configuration works is to describe the proc
     # Lists the order in which components should be deployed
     stage0:
         # A stage deploys a set of components at a time
-        # By default, at the end of each stage, we wait for all new DeploymentConfig's # to reach "active", unless you set 'wait' to False as seen below...
+        # By default, at the end of each stage, we wait for all new DeploymentConfig's # to reach "active", and build configurations to successfully build, unless you set 'wait' to False as seen below...
         # Stages are sorted by their name, and processed.
         wait: False
         components:
@@ -257,7 +251,7 @@ def deploy(project_name, template_dir, components, variables_for_component, wait
 * `template_dir`: string, the full path to the directory of the service set's templates which are being deployed
 * `components`: list of strings, the component names from your service set that are being deployed
 * `variables_for_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
-* `wait`: boolean, used to determine whether the deploy logic should wait for things to "finish"
+* `wait`: boolean, used to determine whether the deploy logic should wait for things such as DeploymentConfig and BuildConfig to "finish" (go 'active', or build with success, respectively)
 * `timeout`: int, how long to wait for before timing out
 * `resources_scale_factor`: float, the value passed in to --scale-resources when running ocdeployer
 * `label`: string, the label attached to each object in Open Shift at deploy time
@@ -274,7 +268,7 @@ Much of the code in `ocdeployer.common` may be useful to you as you write custom
 
 
 #### Example 1
-Let's say that after you deploy your components, you want to trigger a build on any build configurations you pushed (actually, this can easily be handled by setting `trigger_builds` to `True` in your service set `_cfg.yml` -- but play along).
+Let's say that after you deploy your components, you want to trigger a build on any build configurations you pushed (actually, this already happens after each stage by default as long as `wait` is not `false` on the stage in your service set `_cfg.yml` -- but play along).
 
 You could define a post-deploy method that looks like this:
 ```python
