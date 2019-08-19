@@ -354,8 +354,13 @@ To use the secrets files in your next project deploy:
 ```
 
 ## Environment file
-By default, the 'NAMESPACE' parameter is passed to all templates which corresponds to the project name. You can also define an "environment"
-file with more detailed variable information. Here is an example:
+By default, the following parameters are passed to templates by ocdeployer at deploy time:
+
+* 'NAMESPACE' corresponds to the project name selected on the CLI.
+* 'SECRETS_PROJECT' corresponds to the secrets-source-project selected on the CLI (default: "secrets")
+
+
+You can also define an "environment" file with more customized variable information. Here is an example:
 
 ```yaml
 global:

@@ -301,8 +301,13 @@ class DeployRunner(object):
         variables = object_merge(self.variables_data.get(service_set, {}), variables)
         variables = object_merge(self.variables_data.get("global", {}), variables)
 
-        # ocdeployer adds the "NAMESPACE" parameter by default at deploy time
-        variables["parameters"].update({"NAMESPACE": self.project_name})
+        # ocdeployer adds the "NAMESPACE" and "SECRETS_PROJECT" parameter by default at deploy time
+        variables["parameters"].update(
+            {
+                "NAMESPACE": self.project_name,
+                "SECRETS_PROJECT": SecretImporter.source_project
+            }
+        )
 
         return variables
 
