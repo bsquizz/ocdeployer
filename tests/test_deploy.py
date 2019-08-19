@@ -58,7 +58,7 @@ def test__get_variables_service_overwrite_parameter():
         "parameters": {
             "STUFF": "service-stuff",
             "NAMESPACE": "test-project",
-            "SECRETS_PROJECT": SecretImporter.source_project}
+            "SECRETS_PROJECT": SecretImporter.source_project
         }
     }
     assert runner(variables_data)._get_variables("service", []) == expected
