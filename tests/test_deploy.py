@@ -1,4 +1,5 @@
 import ocdeployer.deploy
+from ocdeployer.secrets import SecretImporter
 
 
 def runner(variables_data):
@@ -14,7 +15,11 @@ def test__get_variables_sanity():
     expected = {
         "enable_routes": False,
         "enable_db": False,
-        "parameters": {"STUFF": "things", "NAMESPACE": "test-project"},
+        "parameters": {
+            "STUFF": "things",
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
+        },
     }
     assert runner(variables_data)._get_variables("service", []) == expected
 
@@ -38,6 +43,7 @@ def test__get_variables_merge_from_global():
             "GLOBAL": "things",
             "STUFF": "service-stuff",
             "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
         },
     }
     assert runner(variables_data)._get_variables("service", "component") == expected
@@ -48,13 +54,25 @@ def test__get_variables_service_overwrite_parameter():
         "global": {"parameters": {"STUFF": "things"}},
         "service": {"parameters": {"STUFF": "service-stuff"}},
     }
-    expected = {"parameters": {"STUFF": "service-stuff", "NAMESPACE": "test-project"}}
+    expected = {
+        "parameters": {
+            "STUFF": "service-stuff",
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
+        }
+    }
     assert runner(variables_data)._get_variables("service", []) == expected
 
 
 def test__get_variables_service_overwrite_variable():
     variables_data = {"global": {"enable_db": False}, "service": {"enable_db": True}}
-    expected = {"enable_db": True, "parameters": {"NAMESPACE": "test-project"}}
+    expected = {
+        "enable_db": True,
+        "parameters": {
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
+        }
+    }
     assert runner(variables_data)._get_variables("service", []) == expected
 
 
@@ -65,7 +83,12 @@ def test__get_variables_component_overwrite_parameter():
         "service/component": {"parameters": {"THINGS": "component-things"}},
     }
     expected = {
-        "parameters": {"STUFF": "things", "THINGS": "component-things", "NAMESPACE": "test-project"}
+        "parameters": {
+            "STUFF": "things",
+            "THINGS": "component-things",
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
+        }
     }
     assert runner(variables_data)._get_variables("service", "component") == expected
 
@@ -79,6 +102,9 @@ def test__get_variables_component_overwrite_variable():
     expected = {
         "enable_routes": False,
         "enable_db": False,
-        "parameters": {"NAMESPACE": "test-project"},
+        "parameters": {
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
+        },
     }
     assert runner(variables_data)._get_variables("service", "component") == expected
