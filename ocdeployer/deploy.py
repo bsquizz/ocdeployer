@@ -56,9 +56,7 @@ def deploy_components(
         The templates we used to deploy this service set, in the same dict format as
         get_templates_in_dir()
     """
-    deployments_to_wait_for = []
-    builds_to_wait_for = []
-
+    resources_to_wait_for = []
     templates_by_name = get_templates_in_dir(template_dir)
     processed_templates_by_name = {}
 
@@ -80,21 +78,22 @@ def deploy_components(
         log.info("Deploying component '%s'", comp_name)
         oc("apply", "-f", "-", "-n", project_name, _in=template.dump_processed_json())
 
-        deployments = template.get_processed_names_for_restype("dc")
-        for name in deployments:
-            deployments_to_wait_for.append(("dc", name))
+        # Mark certain resources in this component as ones we need to wait on
+        for restype in ("dc", "bc", "sts"):
+            resources_to_wait_for.extend(
+                [(restype, name) for name in template.get_processed_names_for_restype(restype)]
+            )
 
+        # Re-trigger any builds for deployed build configs
         bcs = template.get_processed_names_for_restype("bc")
         for name in bcs:
-            builds_to_wait_for.append(("bc", name))
             log.info("Re-triggering builds for '%s'", name)
             oc("cancel-build", "bc/{}".format(name), state="pending,new,running")
             oc("start-build", "bc/{}".format(name))
 
-    # Wait on all deployments and builds
+    # Wait on all resources that have been marked as 'resources to wait for'
     if wait:
-        items_to_wait_for = deployments_to_wait_for + builds_to_wait_for
-        wait_for_ready_threaded(items_to_wait_for, timeout=timeout, exit_on_err=True)
+        wait_for_ready_threaded(resources_to_wait_for, timeout=timeout, exit_on_err=True)
 
     return processed_templates_by_name
 
@@ -303,10 +302,7 @@ class DeployRunner(object):
 
         # ocdeployer adds the "NAMESPACE" and "SECRETS_PROJECT" parameter by default at deploy time
         variables["parameters"].update(
-            {
-                "NAMESPACE": self.project_name,
-                "SECRETS_PROJECT": SecretImporter.source_project
-            }
+            {"NAMESPACE": self.project_name, "SECRETS_PROJECT": SecretImporter.source_project}
         )
 
         return variables
