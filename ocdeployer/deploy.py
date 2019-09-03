@@ -81,10 +81,7 @@ def deploy_components(
         # Mark certain resources in this component as ones we need to wait on
         for restype in ("dc", "bc", "sts"):
             resources_to_wait_for.extend(
-                [
-                    (restype, name) for name in
-                    template.get_processed_names_for_restype(restype)
-                ]
+                [(restype, name) for name in template.get_processed_names_for_restype(restype)]
             )
 
         # Re-trigger any builds for deployed build configs
@@ -305,10 +302,7 @@ class DeployRunner(object):
 
         # ocdeployer adds the "NAMESPACE" and "SECRETS_PROJECT" parameter by default at deploy time
         variables["parameters"].update(
-            {
-                "NAMESPACE": self.project_name,
-                "SECRETS_PROJECT": SecretImporter.source_project
-            }
+            {"NAMESPACE": self.project_name, "SECRETS_PROJECT": SecretImporter.source_project}
         )
 
         return variables
