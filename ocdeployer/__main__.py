@@ -25,6 +25,7 @@ from ocdeployer.utils import (
 )
 from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
+from ocdeployer.events import start_event_watcher
 
 
 log = logging.getLogger("ocdeployer")
@@ -346,6 +347,8 @@ def deploy_to_project(
 
     switch_to_project(dst_project)
 
+    event_watcher = start_event_watcher(dst_project)
+
     DeployRunner(
         template_dir,
         dst_project,
@@ -359,6 +362,8 @@ def deploy_to_project(
         skip=skip.split(",") if skip else None,
         dry_run=False,
     ).run()
+
+    event_watcher.stop()
 
     list_routes(dst_project)
 

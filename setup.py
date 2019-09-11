@@ -21,7 +21,8 @@ setup(
     setup_requires=["setuptools_scm"],
     include_package_data=True,
     install_requires=[
-        "sh", "prompter", "pyyaml", "click", "appdirs", "wait_for", "jinja2", "cached_property"
+        "sh", "prompter", "pyyaml", "click", "appdirs", "wait_for", "jinja2", "cached_property",
+        "pytz", "kubernetes"
     ],
     classifiers=[
         "Topic :: Utilities",
