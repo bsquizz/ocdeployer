@@ -1,12 +1,9 @@
 import logging
 import threading
 
-import dateutil.parser
 import datetime
 import pytz
 from kubernetes import client, config, watch
-
-from .utils import oc
 
 
 log = logging.getLogger(__name__)
@@ -39,7 +36,7 @@ class EventWatcher(threading.Thread):
 
         _events.extend(v1_event_list.items)
         if v1_event_list.metadata._continue:
-            return get_all_events(namespace, _events, v1_event_list.metadata._continue)
+            self.get_all_events(_events, v1_event_list.metadata._continue)
 
         return _events
 
@@ -74,7 +71,7 @@ class EventWatcher(threading.Thread):
             )
             # Only print new events, and don't print repeat events
             if obj.last_timestamp > old_event_time and event_info != last_event_info:
-                log.info(" --> event [%s] [%s %s] [%s - %s] %s", *event_info)
+                log.info(" --> [%s] [%s %s] [%s - %s] %s", *event_info)
                 last_event_info = event_info
 
     def stop(self):
