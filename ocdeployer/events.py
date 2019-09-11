@@ -11,7 +11,8 @@ log = logging.getLogger(__name__)
 
 class EventWatcher(threading.Thread):
     def __init__(self, namespace, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        daemon = kwargs.pop("daemon", True)
+        super().__init__(*args, **kwargs, daemon=daemon)
         # Since we have already run 'oc project', our kube config has auth info
         config.load_kube_config()
         self._watcher = None
