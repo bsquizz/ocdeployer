@@ -33,7 +33,7 @@ SHORTCUTS = {
     "pod": "po",
     "resourcequota": "quota",
     "replicationcontroller": "rc",
-    "secrets": None,
+    "secrets": "secret",
     "service": "svc",
     "serviceaccount": "sa",
     "statefulset": "sts",
