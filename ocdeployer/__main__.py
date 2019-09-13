@@ -303,6 +303,7 @@ def deploy_dry_run(
     default=None,
     help="Adds a label to each deployed resource.  E.g. '-l app=test'",
 )
+@click.option("--watch", "-w", default=False, help="Enable event watching during the deploy")
 @click.argument("dst_project")
 def deploy_to_project(
     dst_project,
@@ -319,6 +320,7 @@ def deploy_to_project(
     pick,
     label,
     skip,
+    watch,
 ):
     if not custom_dir:
         path = appdirs_path / "custom"
@@ -347,7 +349,8 @@ def deploy_to_project(
 
     switch_to_project(dst_project)
 
-    event_watcher = start_event_watcher(dst_project)
+    if watch:
+        event_watcher = start_event_watcher(dst_project)
 
     DeployRunner(
         template_dir,
@@ -363,7 +366,7 @@ def deploy_to_project(
         dry_run=False,
     ).run()
 
-    if event_watcher:
+    if watch and event_watcher:
         event_watcher.stop()
 
     list_routes(dst_project)
