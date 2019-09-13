@@ -81,6 +81,13 @@ class EventWatcher(threading.Thread):
 
 
 def start_event_watcher(namespace):
-    event_watcher = EventWatcher(namespace)
-    event_watcher.start()
+    try:
+        event_watcher = EventWatcher(namespace)
+    except Exception:
+        log.exception("Failed to init event watcher, unable to monitor events")
+        event_watcher = None
+
+    if event_watcher:
+        event_watcher.start()
+
     return event_watcher

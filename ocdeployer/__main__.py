@@ -363,7 +363,8 @@ def deploy_to_project(
         dry_run=False,
     ).run()
 
-    event_watcher.stop()
+    if event_watcher:
+        event_watcher.stop()
 
     list_routes(dst_project)
 
