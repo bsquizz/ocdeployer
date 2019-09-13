@@ -303,7 +303,9 @@ def deploy_dry_run(
     default=None,
     help="Adds a label to each deployed resource.  E.g. '-l app=test'",
 )
-@click.option("--watch", "-w", default=False, help="Enable event watching during the deploy")
+@click.option(
+    "--watch", "-w", is_flag=True, default=False, help="Enable event watching during the deploy"
+)
 @click.argument("dst_project")
 def deploy_to_project(
     dst_project,
