@@ -107,6 +107,7 @@ Options:
                               'custom')
   -l, --label TEXT            Adds a label to each deployed resource.  E.g.
                               '-l app=test'
+  -w, --watch                 Enable event watching during the deploy
   -h, --help                  Show this message and exit.
 ```
 
