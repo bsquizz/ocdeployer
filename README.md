@@ -165,59 +165,80 @@ The best way to explain how template configuration works is to describe the proc
 
 3. Create a '_cfg.yml' file in your directory. The contents of this config file are explained below:
     ```yaml
-    requires:
+    
+
+    # (optional) requires
+    #
     # Here you can list other service sets that need to be deployed before this one can.
     # Deployment will fail when processing this file if we see the required service set has
-    # not yet been deployed.
+    # not yet been deployed in this run of ocdeployer.
+    requires:
     - "myotherservice"
 
+    # (optional) secrets
+    #
+    # Lists which secrets apps in this service set rely on; they will be imported at run time.
+    # A secret is only imported once per deploy run, so if other service sets rely on the same
+    # secret it won't be imported again.
     secrets:
-    # Lists which secrets these services rely on; they will be imported
-    # A secret is only imported once, so if other services rely on the same secret
-    # it won't be imported again.
     - "mysecret"
 
+    # (optional) custom_deploy_logic
+    #
     # Indicates that there is a pre_deploy/post_deploy/deploy method defined for this
-    # service set that should be used
+    # service set in the 'custom' folder that should be used
     custom_deploy_logic: true
 
-    # Indicates how long post-deploy logic should take before timeout in sec
+    # (optional) post_deploy_timeout
+    #
+    # Indicates how long custom post_deploy logic should take before timeout (in seconds).
     # A null value can be handled differently depending on the post deploy logic,
     # but it is recommended that it means there is "no waiting" that will occur
     post_deploy_timeout: 300
 
-    images:
-    # Lists the images these services require
-    # key: the name used in the openshift config
-    # value: the full image "pull uri" to pass to 'oc import-image'
+    # (optional) images
+    # Lists the image streams these services require to be imported into the destination namespace.
+    #
+    # key = the name or name:tag for the image stream. If no tag is specified, 'latest' is used.
+    # value = the full image docker uri
+    #
+    # 'oc import-image <key> --from="<value>"' is run at deploy time.
     #
     # We check to make sure that an image with this name exists before importing it.
     # If it already exists, it will not be re-imported.
-    cp-kafka: "confluentinc/cp-kafka"
-    cp-zookeeper: "confluentinc/cp-zookeeper"
-    nginx-stable-openshift: "docker.io/mhuth/nginx-stable-openshift"
-    python-36-centos7: "centos/python-36-centos7"
-    postgresql-95-rhel7: "registry.access.redhat.com/rhscl/postgresql-95-rhel7"
+    images:
+      cp-kafka: "confluentinc/cp-kafka"
+      cp-zookeeper: "confluentinc/cp-zookeeper"
+      nginx-stable-openshift: "docker.io/mhuth/nginx-stable-openshift"
+      python-36-centos7: "centos/python-36-centos7"
+      postgresql-95-rhel7: "registry.access.redhat.com/rhscl/postgresql-95-rhel7"
 
+    # (required) deploy_order
+    #
+    # Lists the order in which components in this service set should be deployed.
     deploy_order:
-    # Lists the order in which components should be deployed
-    stage0:
-        # A stage deploys a set of components at a time
-        # By default, at the end of each stage, we wait for all new DeploymentConfig's # to reach "active", and build configurations to successfully build, unless you set 'wait' to False as seen below...
-        # Stages are sorted by their name, and processed.
-        wait: False
+      # A stage deploys a group of components in sequentially and then waits for them to reach 'active'
+      # in parallel. By default, at the end of each stage, we wait for:
+      #   * DeploymentConfig's to be "active"
+      #   * StatefulSet's to be "active"
+      #   * BuildConfig's to succeed
+      #
+      # Setting 'wait' to false under the stage disables this behavior.
+      #
+      # Stages are processed after being sorted by name.
+      stage0:
+        wait: false
         components:
         - "zookeeper"
-    stage1:
+      stage1:
         # You can specify a wait timeout. By default, 300sec is used
         timeout: 600
+        # 'components' lists the template files that should be deployed in this stage.
+        # Their config is applied in openshift in the same order they are listed.
         components:
-        # Components lists the templates that should be deployed in this stage.
-        # They are created in openshift in the same order they are listed.
-        # A component can be a template file, or it can be a folder of more templates
         - "kafka"
         - "inventory-db"
-    stage2:
+      stage2:
         components:
         - "insights-inventory"
         - "upload-service"
