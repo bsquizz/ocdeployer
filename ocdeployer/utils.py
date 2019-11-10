@@ -16,7 +16,6 @@ from wait_for import wait_for, TimedOutError
 
 log = logging.getLogger(__name__)
 
-
 # Resource types and their cli shortcuts
 # Mostly listed here: https://docs.openshift.com/online/cli_reference/basic_cli_operations.html
 SHORTCUTS = {
@@ -541,3 +540,8 @@ def start_deployment(dc_name, timeout=180):
         timeout=timeout,
         log_on_loop=True,
     )
+
+
+def get_server_info():
+    """Return server connected on"""
+    return oc("whoami", "--show-server", _silent=True)
