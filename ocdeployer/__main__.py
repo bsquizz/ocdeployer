@@ -22,6 +22,7 @@ from ocdeployer.utils import (
     load_cfg_file,
     get_routes,
     switch_to_project,
+    get_server_info,
 )
 from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
@@ -37,12 +38,15 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 def wipe(no_confirm, project, label):
+    server = get_server_info()
     extra_msg = ""
     if label:
         extra_msg = " with label '{}'".format(label)
 
     if not no_confirm and prompter.yesno(
-        "I'm about to delete everything in project '{}'{}.  Continue?".format(project, extra_msg),
+        "I'm about to delete everything in project '{}'{} on server {} -- continue?".format(
+            project, extra_msg, server
+        ),
         default="no",
     ):
         sys.exit(0)
@@ -201,6 +205,7 @@ def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
         sys.exit(1)
 
     specific_component = None
+    server = get_server_info()
 
     if pick:
         try:
@@ -209,16 +214,20 @@ def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
             log.error("Invalid format for '--pick', use: 'service_set/component'")
             sys.exit(1)
         sets_selected = [service_set]
-        confirm_msg = "Deploying single component '{}' to project '{}'.  Continue?".format(
-            pick, dst_project
+        confirm_msg = (
+            "Deploying single component '{}' to project '{}' on server {} -- continue?".format(
+                pick, dst_project, server
+            )
         )
     else:
         if all_services:
             sets_selected = all_sets(template_dir)
         else:
             sets_selected = sets.split(",")
-        confirm_msg = "Deploying service sets '{}' to project '{}'.  Continue?".format(
-            ", ".join(sets_selected), dst_project
+        confirm_msg = (
+            "Deploying service sets '{}' to project '{}' on server {} -- continue?".format(
+                ", ".join(sets_selected), dst_project, server
+            )
         )
 
     if env_files:
