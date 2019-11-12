@@ -42,7 +42,7 @@ def _scale_val(val, scale_factor):
     * "2" scaled by .5 returns "1"
     * "200m" scaled by 2 returns "400m"
     """
-    match = RESOURCE_REGEX.match(val)
+    match = RESOURCE_REGEX.match(str(val))
     if match:
         base_num, decimal, unit = match.groups()
     else:

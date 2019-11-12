@@ -44,7 +44,7 @@ def wipe(no_confirm, project, label):
         extra_msg = " with label '{}'".format(label)
 
     if not no_confirm and prompter.yesno(
-        "I'm about to delete everything in project '{}'{} on server {}Continue?".format(project, extra_msg, server),
+        "I'm about to delete everything in project '{}'{} on server {} -- continue?".format(project, extra_msg, server),
         default="no",
     ):
         sys.exit(0)
@@ -212,7 +212,7 @@ def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
             log.error("Invalid format for '--pick', use: 'service_set/component'")
             sys.exit(1)
         sets_selected = [service_set]
-        confirm_msg = "Deploying single component '{}' to project '{}' on server {}Continue?".format(
+        confirm_msg = "Deploying single component '{}' to project '{}' on server {} -- continue?".format(
             pick, dst_project, server
         )
     else:
@@ -220,7 +220,7 @@ def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
             sets_selected = all_sets(template_dir)
         else:
             sets_selected = sets.split(",")
-        confirm_msg = "Deploying service sets '{}' to project '{}' on server {}Continue?".format(
+        confirm_msg = "Deploying service sets '{}' to project '{}' on server {} -- continue?".format(
             ", ".join(sets_selected), dst_project, server
         )
 
