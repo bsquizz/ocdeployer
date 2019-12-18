@@ -204,8 +204,7 @@ The best way to explain how template configuration works is to describe the proc
     #
     # 'oc import-image <key> --from="<value>"' is run at deploy time.
     #
-    # We check to make sure that an image with this name exists before importing it.
-    # If it already exists, it will not be re-imported.
+    # If it already exists, it will be re-imported (and therefore the image will be updated)
     images:
       cp-kafka: "confluentinc/cp-kafka"
       cp-zookeeper: "confluentinc/cp-zookeeper"
