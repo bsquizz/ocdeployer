@@ -136,7 +136,7 @@ If we had more sets, you could deploy only set1 and set2 with the below command.
 ## High-level steps of the deploy process
 
 `ocdeployer` essentially does the following for each service set as it deploys them:
-1) Runs `oc import-image` for any images listed in the `_cfg.yml`. NOTE: if image streams with the same name/tag already exist in the project, they will not be re-imported.
+1) Runs `oc import-image` for any images listed in the `_cfg.yml`. NOTE: if image streams with the same name/tag already exist in the project, they will be re-imported.
 2) Imports any needed secrets from the secrets local dir, or from a separate OpenShift project. NOTE: if any secrets exist with the same name in the project, they will be overwritten.
 3) Runs custom pre-deploy logic, if any is defined.
 4) For each stage, it deploys the components in the configured order. If the default `deploy` logic is not overwritten by a custom deploy method:

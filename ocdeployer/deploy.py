@@ -144,9 +144,7 @@ def _handle_secrets_and_imgs(config):
 
     # Import the specified images
     for img_name, img_src in config.get("images", {}).items():
-        exists = oc("get", "is", img_name, _exit_on_err=False)
-        if not exists:
-            oc("import-image", img_name, "--from={}".format(img_src), "--confirm")
+        oc("import-image", img_name, "--from={}".format(img_src), "--confirm")
 
 
 def _get_custom_methods(service_set, custom_dir):
