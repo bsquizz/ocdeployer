@@ -9,6 +9,9 @@ import os
 import sys
 import yaml
 
+from cached_property import cached_property
+
+from .env import get_base_env_config
 from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
@@ -241,7 +244,7 @@ class DeployRunner(object):
         self,
         template_dir,
         project_name,
-        variables_data,
+        env_names,
         ignore_requires,
         service_sets_selected,
         resources_scale_factor,
@@ -255,7 +258,7 @@ class DeployRunner(object):
         self.template_dir = template_dir
         self.custom_dir = custom_dir
         self.project_name = project_name
-        self.variables_data = variables_data or {}
+        self.env_names = env_names or []
         self.ignore_requires = ignore_requires
         self.service_sets_selected = service_sets_selected
         self.resources_scale_factor = resources_scale_factor
@@ -265,6 +268,10 @@ class DeployRunner(object):
         self.skip = skip
         self.dry_run = dry_run
         self.dry_run_opts = dry_run_opts or {}
+
+    @cached_property
+    def _base_config(self):
+        return get_base_env_config("env")
 
     def _get_variables(self, service_set, component):
         """

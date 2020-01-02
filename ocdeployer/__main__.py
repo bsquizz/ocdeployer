@@ -97,26 +97,6 @@ def list_sets(template_dir, output=None):
         print(yaml.dump(as_dict, default_flow_style=False))
 
 
-def get_variables_data(variables_files):
-    variables_data = load_cfg_file(variables_files[0])
-
-    # Merge multiple config files
-    if len(variables_files) > 1:
-        for var_file in variables_files[1:]:
-            merged_file_data = load_cfg_file(var_file)
-            variables_data = object_merge(variables_data, merged_file_data)
-
-    # Check if there's any variables we need to prompt for
-    for section, data in variables_data.items():
-        for var_name, var_value in data.items():
-            if var_value == "{prompt}":
-                variables_data[section][var_name] = prompter.prompt(
-                    "Enter value for parameter '{}' in section '{}':".format(var_name, section)
-                )
-
-    return variables_data
-
-
 def verify_label(label):
     if not label:
         return
@@ -149,12 +129,12 @@ _common_options = [
     ),
     click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"),
     click.option(
-        "--env-file",
+        "--env",
         "-e",
-        "env_files",
+        "env_names",
         help=(
-            "Path to parameters config file (default: None)."
-            "  Use this option multiple times to concatenate config files"
+            "Name of environment to load variables from (default: None)."
+            "  Use this option multiple times to concatenate environment configurations"
         ),
         multiple=True,
     ),
@@ -189,7 +169,7 @@ def output_option(func):
     return option(func)
 
 
-def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
+def _parse_args(template_dir, all_services, sets, pick, dst_project):
     """Parses args common to 'process' and 'deploy'."""
     if not template_dir:
         path = appdirs_path / "templates"
@@ -230,12 +210,7 @@ def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
             )
         )
 
-    if env_files:
-        variables_data = get_variables_data(env_files)
-    else:
-        variables_data = {}
-
-    return template_dir, specific_component, sets_selected, variables_data, confirm_msg
+    return template_dir, specific_component, sets_selected, confirm_msg
 
 
 @main.command("process", help="Process templates but do not deploy")
@@ -251,7 +226,7 @@ def deploy_dry_run(
     dst_project,
     sets,
     all_services,
-    env_files,
+    env_names,
     template_dir,
     scale_resources,
     pick,
@@ -259,8 +234,8 @@ def deploy_dry_run(
     output,
     to_dir,
 ):
-    template_dir, specific_component, sets_selected, variables_data, _ = _parse_args(
-        template_dir, all_services, sets, pick, dst_project, env_files
+    template_dir, specific_component, sets_selected, _ = _parse_args(
+        template_dir, all_services, sets, pick, dst_project
     )
 
     # No need to set up SecretImporter, it won't be used in a dry run
@@ -268,7 +243,7 @@ def deploy_dry_run(
     DeployRunner(
         template_dir,
         dst_project,
-        variables_data,
+        env_names,
         ignore_requires=True,  # ignore for a dry run
         service_sets_selected=sets_selected,
         resources_scale_factor=scale_resources,
@@ -323,7 +298,7 @@ def deploy_to_project(
     sets,
     all_services,
     secrets_src_project,
-    env_files,
+    env_names,
     template_dir,
     ignore_requires,
     scale_resources,
@@ -350,8 +325,8 @@ def deploy_to_project(
     SecretImporter.local_dir = secrets_local_dir
     SecretImporter.source_project = secrets_src_project
 
-    template_dir, specific_component, sets_selected, variables_data, confirm_msg = _parse_args(
-        template_dir, all_services, sets, pick, dst_project, env_files
+    template_dir, specific_component, sets_selected, confirm_msg = _parse_args(
+        template_dir, all_services, sets, pick, dst_project
     )
 
     if not no_confirm and not prompter.yesno(confirm_msg):
@@ -366,7 +341,7 @@ def deploy_to_project(
     DeployRunner(
         template_dir,
         dst_project,
-        variables_data,
+        env_names,
         ignore_requires=ignore_requires,
         service_sets_selected=sets_selected,
         resources_scale_factor=scale_resources,
