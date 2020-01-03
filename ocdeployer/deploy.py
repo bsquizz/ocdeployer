@@ -11,7 +11,7 @@ import yaml
 
 from cached_property import cached_property
 
-from .env import get_base_env_config
+from .env import EnvConfigHandler
 from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
@@ -35,7 +35,7 @@ def deploy_components(
 
     This will:
         1. deploy templates from {template_dir} which match each component name in {components}
-           these templates will be processed with {variables}
+            these templates will be processed with {variables}
         2. if {wait} is true, waits for any newly configured DeploymentConfig's to go 'active'
 
     Args:
@@ -258,7 +258,6 @@ class DeployRunner(object):
         self.template_dir = template_dir
         self.custom_dir = custom_dir
         self.project_name = project_name
-        self.env_names = env_names or []
         self.ignore_requires = ignore_requires
         self.service_sets_selected = service_sets_selected
         self.resources_scale_factor = resources_scale_factor
@@ -268,42 +267,12 @@ class DeployRunner(object):
         self.skip = skip
         self.dry_run = dry_run
         self.dry_run_opts = dry_run_opts or {}
+        self.env_config_handler = EnvConfigHandler(env_names)
 
-    @cached_property
-    def _base_config(self):
-        return get_base_env_config("env")
-
-    def _get_variables(self, service_set, component):
-        """
-        Handles parsing of the variables file
-
-        The variables file is set up in the following way:
-
-        global:
-            VAR1: "blah"
-            VAR2: "blah"
-
-        advisor:
-            VAR2: "this overrides global VAR2 for only components in the advisor set"
-
-        advisor/advisor-db:
-            VAR2: "this overrides global VAR2, and advisor VAR2, for only the advisor-db component"
-
-        Args:
-        variables_data (dict) -- content of variables file
-        relative_path -- example: "component/filename"
-
-        Returns:
-            dict of variables/values to apply to this specific component
-        """
-        variables = copy.deepcopy(
-            self.variables_data.get("{}/{}".format(service_set, component), {})
+    def _get_variables(self, service_set_name, service_set_env_dir, component):
+        variables = self.env_config_handler.get_vars_for_component(
+            service_set_env_dir, service_set_name, component
         )
-        if "parameters" not in variables:
-            variables["parameters"] = {}
-
-        variables = object_merge(self.variables_data.get(service_set, {}), variables)
-        variables = object_merge(self.variables_data.get("global", {}), variables)
 
         # ocdeployer adds the "NAMESPACE" and "SECRETS_PROJECT" parameter by default at deploy time
         variables["parameters"].update(
@@ -312,12 +281,16 @@ class DeployRunner(object):
 
         return variables
 
-    def _get_variables_per_component(self, service_set_content, service_set_name):
+    def _get_variables_per_component(
+        self, service_set_content, service_set_env_dir, service_set_name
+    ):
         variables_per_component = {}
         for _, stage_config in service_set_content.get("deploy_order", {}).items():
             variables_per_component.update(
                 {
-                    component_name: self._get_variables(service_set_name, component_name)
+                    component_name: self._get_variables(
+                        service_set_name, service_set_env_dir, component_name
+                    )
                     for component_name in stage_config.get("components", [])
                 }
             )
@@ -409,6 +382,7 @@ class DeployRunner(object):
         processed_templates = {}
 
         dir_path = os.path.join(self.template_dir, service_set)
+        service_set_env_dir = os.path.join(dir_path, "env")
         cfg_path = os.path.join(dir_path, "_cfg.yml")
 
         if not os.path.isdir(dir_path):
@@ -428,7 +402,9 @@ class DeployRunner(object):
                 content, service_set, self.custom_dir
             )
 
-        variables_per_component = self._get_variables_per_component(content, service_set)
+        variables_per_component = self._get_variables_per_component(
+            content, service_set_env_dir, service_set
+        )
 
         deploy_order = content.get("deploy_order", {})
 
