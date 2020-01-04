@@ -1,7 +1,6 @@
 """
 Handles deploy logic for components
 """
-import copy
 import importlib
 import json
 import logging
@@ -9,10 +8,8 @@ import os
 import sys
 import yaml
 
-from cached_property import cached_property
-
 from .env import EnvConfigHandler
-from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded
+from .utils import load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
 

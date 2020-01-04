@@ -1,6 +1,7 @@
 import pytest
 
-import ocdeployer
+import ocdeployer.env
+
 
 @pytest.fixture
 def mock_files(monkeypatch):
@@ -13,20 +14,23 @@ def mock_files(monkeypatch):
     def mock_load_cfg_file(path):
         if path == "env/test_env.yml":
             return {
-                "service": {"enable_routes": False, "enable_db": False, "parameters": {"STUFF": "things"}}
+                "service": {
+                    "enable_routes": False, "enable_db": False, "parameters": {"STUFF": "things"}
+                }
             }
         if path == "env/other_env.yml":
             return {
                 "another_service": {"somekey": "somevalue"}
             }
 
-    monkeypatch.setattr(ocdeployer.utils, "get_cfg_files_in_dir", mock_get_cfg_files_in_dir)
-    monkeypatch.setattr(ocdeployer.utils, "load_cfg_file", mock_load_cfg_file)
+    # To understand why we're patching at 'ocdeployer.env'...
+    # Read: https://docs.python.org/3/library/unittest.mock.html#where-to-patch
+    monkeypatch.setattr("ocdeployer.env.get_cfg_files_in_dir", mock_get_cfg_files_in_dir)
+    monkeypatch.setattr("ocdeployer.env.load_cfg_file", mock_load_cfg_file)
 
 
 def test__load_vars_per_env(mock_files):
-    import ocdeployer.env
-    ech = ocdeployer.env.EnvConfigHandler(env_names=["test_env", "other_env"])
+    handler = ocdeployer.env.EnvConfigHandler(env_names=["test_env", "other_env"])
 
     expected = {
         'test_env': {
@@ -41,12 +45,11 @@ def test__load_vars_per_env(mock_files):
         }
     }
 
-    assert ech._load_vars_per_env("env") == expected
+    assert handler._load_vars_per_env("env") == expected
 
 
 def test__load_vars_per_env_ignore_other_env(mock_files):
-    import ocdeployer.env
-    ech = ocdeployer.env.EnvConfigHandler(env_names=["test_env"])
+    handler = ocdeployer.env.EnvConfigHandler(env_names=["test_env"])
 
     expected = {
         'test_env': {
@@ -56,22 +59,20 @@ def test__load_vars_per_env_ignore_other_env(mock_files):
         }
     }
 
-    assert ech._load_vars_per_env("env") == expected
+    assert handler._load_vars_per_env("env") == expected
 
 
 def test__load_vars_per_env_no_envs_specified(mock_files):
-    import ocdeployer.env
-    ech = ocdeployer.env.EnvConfigHandler(env_names=[])
+    handler = ocdeployer.env.EnvConfigHandler(env_names=[])
 
     expected = {}
 
-    assert ech._load_vars_per_env("env") == expected
+    assert handler._load_vars_per_env("env") == expected
 
 
 def test__load_vars_per_env_no_env_files_in_dir(mock_files):
-    import ocdeployer.env
-    ech = ocdeployer.env.EnvConfigHandler(env_names=['test_env'])
+    handler = ocdeployer.env.EnvConfigHandler(env_names=['test_env'])
 
     expected = {}
 
-    assert ech._load_vars_per_env("empty_env_dir") == expected
+    assert handler._load_vars_per_env("empty_env_dir") == expected

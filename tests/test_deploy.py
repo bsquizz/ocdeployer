@@ -1,11 +1,8 @@
-import pytest
-
 from ocdeployer.secrets import SecretImporter
+from ocdeployer.deploy import DeployRunner
 
 
-def test_runner(env_names, mock_load_vars_per_env):
-    # TODO: fix this ... for now putting the import in here so the monkeypatch in test_env works ...
-    from ocdeployer.deploy import DeployRunner
+def patched_runner(env_names, mock_load_vars_per_env):
     runner = DeployRunner(
         None, "test-project", env_names, None, None, None, None
     )
@@ -13,12 +10,14 @@ def test_runner(env_names, mock_load_vars_per_env):
     return runner
 
 
-def build_mock_loader(mock_data):
+def build_mock_loader(base_env_data, service_set_env_data={}):
     def mock_load_vars_per_env(path):
         if path == "env":
-            return mock_data
+            return base_env_data
+        if path == "service/env":
+            return service_set_env_data
         return {}
-    
+
     return mock_load_vars_per_env
 
 
@@ -41,7 +40,7 @@ def test__get_variables_sanity(monkeypatch):
         }
     }
 
-    runner = test_runner(["test_env"], build_mock_loader(mock_var_data))
+    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data))
     assert runner._get_variables("service", "service/env", "some_component") == expected
 
 
@@ -70,16 +69,18 @@ def test__get_variables_merge_from_global():
         },
     }
 
-    runner = test_runner(["test_env"], build_mock_loader(mock_var_data))
+    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data))
     assert runner._get_variables("service", "service/env", "component") == expected
 
-'''
-TODO
+
 def test__get_variables_service_overwrite_parameter():
-    variables_data = {
-        "global": {"parameters": {"STUFF": "things"}},
-        "service": {"parameters": {"STUFF": "service-stuff"}},
+    mock_var_data = {
+        "test_env": {
+            "global": {"parameters": {"STUFF": "things"}},
+            "service": {"parameters": {"STUFF": "service-stuff"}}
+        }
     }
+
     expected = {
         "parameters": {
             "STUFF": "service-stuff",
@@ -87,11 +88,18 @@ def test__get_variables_service_overwrite_parameter():
             "SECRETS_PROJECT": SecretImporter.source_project
         }
     }
-    assert runner(variables_data)._get_variables("service", []) == expected
+
+    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data))
+    assert runner._get_variables("service", "service/env", "component") == expected
 
 
 def test__get_variables_service_overwrite_variable():
-    variables_data = {"global": {"enable_db": False}, "service": {"enable_db": True}}
+    mock_var_data = {
+        "test_env": {
+            "global": {"enable_db": False}, "service": {"enable_db": True}
+        }
+    }
+
     expected = {
         "enable_db": True,
         "parameters": {
@@ -99,15 +107,20 @@ def test__get_variables_service_overwrite_variable():
             "SECRETS_PROJECT": SecretImporter.source_project
         }
     }
-    assert runner(variables_data)._get_variables("service", []) == expected
+
+    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data))
+    assert runner._get_variables("service", "service/env", "component") == expected
 
 
 def test__get_variables_component_overwrite_parameter():
-    variables_data = {
-        "global": {"parameters": {"STUFF": "things"}},
-        "service": {"parameters": {"THINGS": "service-things"}},
-        "service/component": {"parameters": {"THINGS": "component-things"}},
+    mock_var_data = {
+        "test_env": {
+            "global": {"parameters": {"STUFF": "things"}},
+            "service": {"parameters": {"THINGS": "service-things"}},
+            "service/component": {"parameters": {"THINGS": "component-things"}}
+        }
     }
+
     expected = {
         "parameters": {
             "STUFF": "things",
@@ -116,15 +129,20 @@ def test__get_variables_component_overwrite_parameter():
             "SECRETS_PROJECT": SecretImporter.source_project
         }
     }
-    assert runner(variables_data)._get_variables("service", "component") == expected
+
+    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data))
+    assert runner._get_variables("service", "service/env", "component") == expected
 
 
 def test__get_variables_component_overwrite_variable():
-    variables_data = {
-        "global": {"enable_routes": False},
-        "service": {"enable_db": True},
-        "service/component": {"enable_db": False},
+    mock_var_data = {
+        "test_env": {
+            "global": {"enable_routes": False},
+            "service": {"enable_db": True},
+            "service/component": {"enable_db": False},
+        }
     }
+
     expected = {
         "enable_routes": False,
         "enable_db": False,
@@ -133,5 +151,95 @@ def test__get_variables_component_overwrite_variable():
             "SECRETS_PROJECT": SecretImporter.source_project
         },
     }
-    assert runner(variables_data)._get_variables("service", "component") == expected
-'''
+
+    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data))
+    assert runner._get_variables("service", "service/env", "component") == expected
+
+
+def test__get_variables_base_and_service_set():
+    base_var_data = {
+        "test_env": {
+            "global": {"global_var": "base_global", "parameters": {"GLOBAL_PARAM": "things"}}
+        }
+    }
+
+    service_set_var_data = {
+        "test_env": {
+            "global": {"global_set_var": "set_global", "parameters": {"PARAM": "something"}},
+            "component": {"component_var": "something", "parameters": {"ANOTHER_PARAM": "stuff"}}
+        }
+    }
+
+    expected = {
+        "global_var": "base_global",
+        "global_set_var": "set_global",
+        "component_var": "something",
+        "parameters": {
+            "GLOBAL_PARAM": "things",
+            "PARAM": "something",
+            "ANOTHER_PARAM": "stuff",
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
+        }
+    }
+
+    runner = patched_runner(["test_env"], build_mock_loader(base_var_data, service_set_var_data))
+    assert runner._get_variables("service", "service/env", "component") == expected
+
+
+def test__get_variables_service_set_only():
+    base_var_data = {}
+
+    service_set_var_data = {
+        "test_env": {
+            "global": {"global_set_var": "set_global", "parameters": {"PARAM": "something"}},
+            "component": {"component_var": "something", "parameters": {"ANOTHER_PARAM": "stuff"}}
+        }
+    }
+
+    expected = {
+        "global_set_var": "set_global",
+        "component_var": "something",
+        "parameters": {
+            "PARAM": "something",
+            "ANOTHER_PARAM": "stuff",
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
+        }
+    }
+
+    runner = patched_runner(["test_env"], build_mock_loader(base_var_data, service_set_var_data))
+    assert runner._get_variables("service", "service/env", "component") == expected
+
+
+def test__get_variables_service_set_overrides():
+    base_var_data = {
+        "test_env": {
+            "global": {"global_var": "base_global", "parameters": {"GLOBAL_PARAM": "things"}},
+            "service": {"global_set_var": "blah", "parameters": {"PARAM": "blah"}},
+            "service/component": {"component_var": "override this"}
+        }
+    }
+
+    service_set_var_data = {
+        "test_env": {
+            "global": {"global_set_var": "set_global", "parameters": {"PARAM": "something"}},
+            "component": {"component_var": "something", "parameters": {"ANOTHER_PARAM": "stuff"}}
+        }
+    }
+
+    expected = {
+        "global_var": "base_global",
+        "global_set_var": "set_global",
+        "component_var": "something",
+        "parameters": {
+            "GLOBAL_PARAM": "things",
+            "PARAM": "something",
+            "ANOTHER_PARAM": "stuff",
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project
+        }
+    }
+
+    runner = patched_runner(["test_env"], build_mock_loader(base_var_data, service_set_var_data))
+    assert runner._get_variables("service", "service/env", "component") == expected

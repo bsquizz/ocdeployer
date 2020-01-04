@@ -8,5 +8,5 @@ cache: pip
 install:
   - pip install -r requirements-test.txt
 script:
-  - flake8 --max-line-length 100 ocdeployer/* tests/* setup.py
+  - flake8 --max-line-length 100 ocdeployer/*.py tests/*.py setup.py
   - pytest

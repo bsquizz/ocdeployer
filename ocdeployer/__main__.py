@@ -17,9 +17,7 @@ import yaml
 
 from ocdeployer.utils import (
     all_sets,
-    object_merge,
     oc,
-    load_cfg_file,
     get_routes,
     switch_to_project,
     get_server_info,

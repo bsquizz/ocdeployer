@@ -164,7 +164,7 @@ class EnvConfigHandler:
         The service set variables file can be set up in the following way:
         global:
             VAR2: "this overrides VAR2 for all components in service set"
-        
+
         advisor-db:
             VAR2: "this overrides VAR2 for only the advisor-db component in the service set"
 
@@ -182,18 +182,9 @@ class EnvConfigHandler:
         else:
             merged_vars = self._merge_service_set_vars(service_set_env_dir, service_set)
 
-        from pprint import pprint
-        pprint("")
-        pprint(merged_vars)
-
         component_level_vars = merged_vars.get(service_set, {}).get(component, {})
         service_set_level_vars = merged_vars.get(service_set, {}).get(GLOBAL, {})
         global_vars = merged_vars.get(GLOBAL, {})
-
-        from pprint import pprint
-        pprint(component_level_vars)
-        pprint(service_set_level_vars)
-        pprint(global_vars)
 
         variables = copy.deepcopy(component_level_vars)
         if "parameters" not in variables:
