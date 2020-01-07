@@ -17,15 +17,14 @@ import yaml
 
 from ocdeployer.utils import (
     all_sets,
-    object_merge,
     oc,
-    load_cfg_file,
     get_routes,
     switch_to_project,
     get_server_info,
 )
 from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
+from ocdeployer.env import EnvConfigHandler, LegacyEnvConfigHandler
 from ocdeployer.events import start_event_watcher
 
 
@@ -97,26 +96,6 @@ def list_sets(template_dir, output=None):
         print(yaml.dump(as_dict, default_flow_style=False))
 
 
-def get_variables_data(variables_files):
-    variables_data = load_cfg_file(variables_files[0])
-
-    # Merge multiple config files
-    if len(variables_files) > 1:
-        for var_file in variables_files[1:]:
-            merged_file_data = load_cfg_file(var_file)
-            variables_data = object_merge(variables_data, merged_file_data)
-
-    # Check if there's any variables we need to prompt for
-    for section, data in variables_data.items():
-        for var_name, var_value in data.items():
-            if var_value == "{prompt}":
-                variables_data[section][var_name] = prompter.prompt(
-                    "Enter value for parameter '{}' in section '{}':".format(var_name, section)
-                )
-
-    return variables_data
-
-
 def verify_label(label):
     if not label:
         return
@@ -145,18 +124,29 @@ _common_options = [
         "--pick",
         "-p",
         default=None,
-        help="Pick a single component from a service" " set and deploy that.  E.g. '-p myset/myvm'",
+        help="Pick a single component from a service set and deploy that.  E.g. '-p myset/myvm'",
     ),
     click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"),
     click.option(
-        "--env-file",
+        "--env",
         "-e",
-        "env_files",
+        "env_values",
         help=(
-            "Path to parameters config file (default: None)."
-            "  Use this option multiple times to concatenate config files"
+            "Name of environment to load variables from (default: None).  Use this option multiple"
+            " times to concatenate environment configurations. The env listed first takes priority."
+            "  You can also specify filenames here (see docs on legacy env file processing)."
         ),
         multiple=True,
+    ),
+    click.option(
+        "--env-dir-name",
+        "-n",
+        default="env",
+        help=(
+            "Env variables directory name (default 'env').  This is joined"
+            " to $WORKING_DIR & each service set dir to set path for discovering env files.  NOTE:"
+            " Does not apply to legacy env file processing."
+        ),
     ),
     click.option(
         "--template-dir", "-t", default=None, help="Template directory (default 'templates')"
@@ -189,13 +179,27 @@ def output_option(func):
     return option(func)
 
 
-def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
+def _parse_args(template_dir, env_values, env_dir_name, all_services, sets, pick, dst_project):
     """Parses args common to 'process' and 'deploy'."""
     if not template_dir:
         path = appdirs_path / "templates"
         template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "templates"
 
     template_dir = os.path.abspath(template_dir)
+
+    # Analyze the values provided by --env to determine which config handler we are using
+    all_env_values_are_files = all([os.path.exists(value) for value in env_values])
+    some_env_values_are_files = any([os.path.exists(value) for value in env_values])
+    if all_env_values_are_files:
+        log.info("A specific filename was provided for env, using legacy env file processing")
+        env_config_handler = LegacyEnvConfigHandler(env_files=env_values)
+    elif some_env_values_are_files:
+        log.error(
+            "Error: Values for '--env' must be either all valid filenames, or all text env names"
+        )
+        sys.exit(1)
+    else:
+        env_config_handler = EnvConfigHandler(env_names=env_values, env_dir_name=env_dir_name)
 
     if not all_services and not sets and not pick:
         log.error(
@@ -215,27 +219,18 @@ def _parse_args(template_dir, all_services, sets, pick, dst_project, env_files):
             sys.exit(1)
         sets_selected = [service_set]
         confirm_msg = (
-            "Deploying single component '{}' to project '{}' on server {} -- continue?".format(
-                pick, dst_project, server
-            )
-        )
+            "Deploying single component '{}' to project '{}' on server {} -- continue?"
+        ).format(pick, dst_project, server)
     else:
         if all_services:
             sets_selected = all_sets(template_dir)
         else:
             sets_selected = sets.split(",")
         confirm_msg = (
-            "Deploying service sets '{}' to project '{}' on server {} -- continue?".format(
-                ", ".join(sets_selected), dst_project, server
-            )
-        )
+            "Deploying service sets '{}' to project '{}' on server {} -- continue?"
+        ).format(", ".join(sets_selected), dst_project, server)
 
-    if env_files:
-        variables_data = get_variables_data(env_files)
-    else:
-        variables_data = {}
-
-    return template_dir, specific_component, sets_selected, variables_data, confirm_msg
+    return template_dir, env_config_handler, specific_component, sets_selected, confirm_msg
 
 
 @main.command("process", help="Process templates but do not deploy")
@@ -251,16 +246,17 @@ def deploy_dry_run(
     dst_project,
     sets,
     all_services,
-    env_files,
+    env_values,
     template_dir,
+    env_dir_name,
     scale_resources,
     pick,
     skip,
     output,
     to_dir,
 ):
-    template_dir, specific_component, sets_selected, variables_data, _ = _parse_args(
-        template_dir, all_services, sets, pick, dst_project, env_files
+    template_dir, env_config_handler, specific_component, sets_selected, _ = _parse_args(
+        template_dir, env_values, env_dir_name, all_services, sets, pick, dst_project
     )
 
     # No need to set up SecretImporter, it won't be used in a dry run
@@ -268,7 +264,7 @@ def deploy_dry_run(
     DeployRunner(
         template_dir,
         dst_project,
-        variables_data,
+        env_config_handler,
         ignore_requires=True,  # ignore for a dry run
         service_sets_selected=sets_selected,
         resources_scale_factor=scale_resources,
@@ -323,8 +319,9 @@ def deploy_to_project(
     sets,
     all_services,
     secrets_src_project,
-    env_files,
+    env_values,
     template_dir,
+    env_dir_name,
     ignore_requires,
     scale_resources,
     custom_dir,
@@ -350,8 +347,8 @@ def deploy_to_project(
     SecretImporter.local_dir = secrets_local_dir
     SecretImporter.source_project = secrets_src_project
 
-    template_dir, specific_component, sets_selected, variables_data, confirm_msg = _parse_args(
-        template_dir, all_services, sets, pick, dst_project, env_files
+    template_dir, env_config_handler, specific_component, sets_selected, confirm_msg = _parse_args(
+        template_dir, env_values, env_dir_name, all_services, sets, pick, dst_project
     )
 
     if not no_confirm and not prompter.yesno(confirm_msg):
@@ -366,7 +363,7 @@ def deploy_to_project(
     DeployRunner(
         template_dir,
         dst_project,
-        variables_data,
+        env_config_handler,
         ignore_requires=ignore_requires,
         service_sets_selected=sets_selected,
         resources_scale_factor=scale_resources,
