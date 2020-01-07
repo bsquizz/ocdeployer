@@ -207,6 +207,9 @@ class EnvConfigHandler:
 
 
 class LegacyEnvConfigHandler(EnvConfigHandler):
+    """
+    Allows use of --env in "legacy mode", i.e. pass in specific env files instead of env names.
+    """
     def __init__(self, env_files):
         self.env_files = env_files
         self._last_service_set = None

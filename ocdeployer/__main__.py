@@ -132,11 +132,9 @@ _common_options = [
         "-e",
         "env_values",
         help=(
-            "Name of environment to load variables from (default: None)."
-            "  Use this option multiple times to concatenate environment configurations."
-            " "
-            "  You can specify specific filenames here (legacy processing), or the names of envs"
-            "  to load from the env dir (preferred method)"
+            "Name of environment to load variables from (default: None).  Use this option multiple"
+            " times to concatenate environment configurations. The env listed first takes priority."
+            "  You can also specify filenames here (see docs on legacy env file processing)."
         ),
         multiple=True,
     ),
@@ -145,11 +143,9 @@ _common_options = [
         "-n",
         default="env",
         help=(
-            "Env variables directory name (default 'env')."
-            "  This is the name of the directory in $WORKING_DIR and in each service set that env"
-            "  files will be loaded from."
-            " "
-            "  NOTE: Does not apply to legacy processing (providing specific filenames to --env)"
+            "Env variables directory name (default 'env').  This is joined"
+            " to $WORKING_DIR & each service set dir to set path for discovering env files.  NOTE:"
+            " Does not apply to legacy env file processing."
         ),
     ),
     click.option(
