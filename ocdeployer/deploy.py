@@ -8,7 +8,6 @@ import os
 import sys
 import yaml
 
-from .env import EnvConfigHandler
 from .utils import load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
@@ -241,7 +240,7 @@ class DeployRunner(object):
         self,
         template_dir,
         project_name,
-        env_names,
+        env_config_handler,
         ignore_requires,
         service_sets_selected,
         resources_scale_factor,
@@ -264,11 +263,11 @@ class DeployRunner(object):
         self.skip = skip
         self.dry_run = dry_run
         self.dry_run_opts = dry_run_opts or {}
-        self.env_config_handler = EnvConfigHandler(env_names)
+        self.env_config_handler = env_config_handler
 
-    def _get_variables(self, service_set_name, service_set_env_dir, component):
+    def _get_variables(self, service_set_name, service_set_dir, component):
         variables = self.env_config_handler.get_vars_for_component(
-            service_set_env_dir, service_set_name, component
+            service_set_dir, service_set_name, component
         )
 
         # ocdeployer adds the "NAMESPACE" and "SECRETS_PROJECT" parameter by default at deploy time
@@ -278,15 +277,13 @@ class DeployRunner(object):
 
         return variables
 
-    def _get_variables_per_component(
-        self, service_set_content, service_set_env_dir, service_set_name
-    ):
+    def _get_variables_per_component(self, service_set_content, service_set_dir, service_set_name):
         variables_per_component = {}
         for _, stage_config in service_set_content.get("deploy_order", {}).items():
             variables_per_component.update(
                 {
                     component_name: self._get_variables(
-                        service_set_name, service_set_env_dir, component_name
+                        service_set_name, service_set_dir, component_name
                     )
                     for component_name in stage_config.get("components", [])
                 }
@@ -379,7 +376,6 @@ class DeployRunner(object):
         processed_templates = {}
 
         dir_path = os.path.join(self.template_dir, service_set)
-        service_set_env_dir = os.path.join(dir_path, "env")
         cfg_path = os.path.join(dir_path, "_cfg.yml")
 
         if not os.path.isdir(dir_path):
@@ -399,9 +395,7 @@ class DeployRunner(object):
                 content, service_set, self.custom_dir
             )
 
-        variables_per_component = self._get_variables_per_component(
-            content, service_set_env_dir, service_set
-        )
+        variables_per_component = self._get_variables_per_component(content, dir_path, service_set)
 
         deploy_order = content.get("deploy_order", {})
 

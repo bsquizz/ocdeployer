@@ -2,12 +2,15 @@ import copy
 import os
 from collections import defaultdict
 
+import appdirs
+import pathlib
 from cached_property import cached_property
 
 from .utils import get_cfg_files_in_dir, load_cfg_file, object_merge
 
 
 GLOBAL = "global"
+APPDIRS_PATH = pathlib.Path(appdirs.user_cache_dir(appname="ocdeployer"))
 
 
 def convert_to_regular_dict(data):
@@ -21,16 +24,22 @@ def nested_dict():
 
 
 class EnvConfigHandler:
-    def __init__(self, env_names):
-        self.base_env_path = "env"
+    def __init__(self, env_names, env_dir_name="env"):
+        path = APPDIRS_PATH / env_dir_name
+        path = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / env_dir_name
+        self.base_env_path = os.path.abspath(path)
+        self.env_dir_name = env_dir_name
         self.env_names = env_names
         self._last_service_set = None
         self._last_merged_vars = None
 
-    def _load_vars_per_env(self, env_dir_path):
+    def _load_vars_per_env(self, path=None):
         data = {}
 
-        env_files = get_cfg_files_in_dir(env_dir_path)
+        if path:
+            env_files = get_cfg_files_in_dir(path)
+        else:
+            env_files = get_cfg_files_in_dir(self.base_env_path)
 
         for file_path in env_files:
             env_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -41,7 +50,7 @@ class EnvConfigHandler:
 
         return data
 
-    def _get_base_vars(self, env_dir_path):
+    def _get_base_vars(self):
         """
         Load variables for env files located in the root 'env' dir
 
@@ -58,15 +67,15 @@ class EnvConfigHandler:
 
         "global" is a reserved service set name and component name
         """
-        vars_per_env = self._load_vars_per_env(env_dir_path)
+        vars_per_env = self._load_vars_per_env()
 
         data = nested_dict()
 
         for env_name, env_vars in vars_per_env.items():
             for key, config in env_vars.items():
-                if '/' in key:
-                    service_set = key.split('/')[0]
-                    component = key.split('/')[1]
+                if "/" in key:
+                    service_set = key.split("/")[0]
+                    component = key.split("/")[1]
                     data[env_name][service_set][component] = config
                 else:
                     # If a specific component is not given, this is a global var
@@ -85,7 +94,7 @@ class EnvConfigHandler:
         """
         Loads the base vars as a cached property, since they only need to be loaded once.
         """
-        return self._get_base_vars(self.base_env_path)
+        return self._get_base_vars()
 
     def _merge_environments(self, data):
         """
@@ -100,16 +109,16 @@ class EnvConfigHandler:
 
         "global" is a reserved service set name and component name
         """
-        merged_data = data[self.env_names[0]]
-
-        # If multiple env's are listed, merge the configs of those together
-        if len(self.env_names) > 1:
-            for _, env_data in self.env_names[:1]:
-                object_merge(merged_data, env_data)
+        merged_data = {}
+        for _, env_data in data.items():
+            if not merged_data:
+                merged_data = env_data
+            else:
+                object_merge(env_data, merged_data)
 
         return merged_data
 
-    def _merge_service_set_vars(self, env_dir_path, service_set):
+    def _merge_service_set_vars(self, service_set_dir, service_set):
         """
         Combine the env vars defined in a service set's env dir with the base env vars
 
@@ -124,27 +133,28 @@ class EnvConfigHandler:
 
         "global" is a reserved service set name and component name
         """
-        vars_per_env = self._load_vars_per_env(env_dir_path)
+        path = os.path.join(service_set_dir, self.env_dir_name)
+
+        vars_per_env = self._load_vars_per_env(path)
 
         data = nested_dict()
 
         for env_name, env_vars in vars_per_env.items():
             for component, variables in env_vars.items():
-                if '/' in component:
+                if "/" in component:
                     # Service-set level env files should only be defining component sections, not
                     # "service_set/component" sections ... if we find a slash then strip out
                     # the leading service set name
-                    component = component.split('/')[1]
+                    component = component.split("/")[1]
                 data[env_name][service_set][component] = variables
 
         data = convert_to_regular_dict(data)
         merged_vars = object_merge(copy.deepcopy(self._base_vars), data)
-        merged_vars = self._merge_environments(merged_vars)
         self._last_service_set = service_set
         self._last_merged_vars = merged_vars
         return merged_vars
 
-    def get_vars_for_component(self, service_set_env_dir, service_set, component):
+    def get_vars_for_component(self, service_set_dir, service_set, component):
         """
         Handles parsing of the variables data
 
@@ -174,13 +184,13 @@ class EnvConfigHandler:
         Returns:
             dict of variables/values to apply to this specific component
         """
-        if not self.env_names:
-            return {}
-
         if service_set == self._last_service_set:
             merged_vars = self._last_merged_vars
         else:
-            merged_vars = self._merge_service_set_vars(service_set_env_dir, service_set)
+            merged_vars = self._merge_service_set_vars(service_set_dir, service_set)
+
+        # Combine data from multiple env files (if provided) together
+        merged_vars = self._merge_environments(merged_vars)
 
         component_level_vars = merged_vars.get(service_set, {}).get(component, {})
         service_set_level_vars = merged_vars.get(service_set, {}).get(GLOBAL, {})
@@ -194,3 +204,21 @@ class EnvConfigHandler:
         variables = object_merge(global_vars, variables)
 
         return variables
+
+
+class LegacyEnvConfigHandler(EnvConfigHandler):
+    def __init__(self, env_files):
+        self.env_files = env_files
+        self._last_service_set = None
+
+    def _load_vars_per_env(self):
+        data = {}
+
+        for file_path in self.env_files:
+            env_name = file_path
+            data[env_name] = load_cfg_file(file_path)
+
+        return data
+
+    def _merge_service_set_vars(self, env_dir_path, service_set):
+        return self._base_vars
