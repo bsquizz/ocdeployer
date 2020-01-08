@@ -146,15 +146,31 @@ def _handle_secrets_and_imgs(config):
         oc("import-image", img_name, "--from={}".format(img_src), "--confirm")
 
 
-def _get_custom_methods(service_set, custom_dir):
+def _load_module(path, service_set):
+    importlib.invalidate_caches()
+    spec = importlib.util.spec_from_file_location(f"deploy_{service_set}", path)
+
+    if not spec or not os.path.exists(path):
+        return None
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[f"deploy_{service_set}"] = module
+    spec.loader.exec_module(module)
+    log.info("Custom script found in '%s' for service set '%s'", path, service_set)
+
+    return module
+
+
+def _get_custom_methods(service_set, service_set_dir, root_custom_dir):
     """
     Look for custom deploy module and import its methods.
     """
-    try:
-        sys.path.insert(0, str(custom_dir))
-        module = importlib.import_module("deploy_{}".format(service_set))
-        log.info("Custom script found for service set '%s'", service_set)
-    except ImportError:
+    module = _load_module(os.path.join(service_set_dir, "custom", "deploy.py"), service_set)
+    if not module:
+        module = _load_module(
+            os.path.join(root_custom_dir, f"deploy_{service_set}.py"), service_set
+        )
+    if not module:
         log.exception("Error loading custom deploy script, using default deploy methods")
         return DEFAULT_DEPLOY_METHODS
 
@@ -189,10 +205,10 @@ def _get_custom_methods(service_set, custom_dir):
     return pre_deploy_method, deploy_method, post_deploy_method
 
 
-def _get_deploy_methods(config, service_set_name, custom_dir):
+def _get_deploy_methods(config, service_set_name, service_set_dir, root_custom_dir):
     if config.get("custom_deploy_logic", False):
         pre_deploy_method, deploy_method, post_deploy_method = _get_custom_methods(
-            service_set_name, custom_dir
+            service_set_name, service_set_dir, root_custom_dir
         )
     else:
         pre_deploy_method, deploy_method, post_deploy_method = DEFAULT_DEPLOY_METHODS
@@ -244,7 +260,7 @@ class DeployRunner(object):
         ignore_requires,
         service_sets_selected,
         resources_scale_factor,
-        custom_dir,
+        root_custom_dir,
         specific_component=None,
         label=None,
         skip=None,
@@ -252,7 +268,7 @@ class DeployRunner(object):
         dry_run_opts=None,
     ):
         self.template_dir = template_dir
-        self.custom_dir = custom_dir
+        self.root_custom_dir = root_custom_dir
         self.project_name = project_name
         self.ignore_requires = ignore_requires
         self.service_sets_selected = service_sets_selected
@@ -392,7 +408,7 @@ class DeployRunner(object):
             _handle_secrets_and_imgs(content)
 
             pre_deploy_func, deploy_func, post_deploy_func = _get_deploy_methods(
-                content, service_set, self.custom_dir
+                content, service_set, dir_path, self.root_custom_dir
             )
 
         variables_per_component = self._get_variables_per_component(content, dir_path, service_set)

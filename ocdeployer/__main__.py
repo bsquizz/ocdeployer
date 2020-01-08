@@ -139,16 +139,6 @@ _common_options = [
         multiple=True,
     ),
     click.option(
-        "--env-dir-name",
-        "-n",
-        default="env",
-        help=(
-            "Env variables directory name (default 'env').  This is joined"
-            " to $WORKING_DIR & each service set dir to set path for discovering env files.  NOTE:"
-            " Does not apply to legacy env file processing."
-        ),
-    ),
-    click.option(
         "--template-dir", "-t", default=None, help="Template directory (default 'templates')"
     ),
     click.option(
@@ -179,7 +169,7 @@ def output_option(func):
     return option(func)
 
 
-def _parse_args(template_dir, env_values, env_dir_name, all_services, sets, pick, dst_project):
+def _parse_args(template_dir, env_values, all_services, sets, pick, dst_project):
     """Parses args common to 'process' and 'deploy'."""
     if not template_dir:
         path = appdirs_path / "templates"
@@ -199,7 +189,7 @@ def _parse_args(template_dir, env_values, env_dir_name, all_services, sets, pick
         )
         sys.exit(1)
     else:
-        env_config_handler = EnvConfigHandler(env_names=env_values, env_dir_name=env_dir_name)
+        env_config_handler = EnvConfigHandler(env_names=env_values)
 
     if not all_services and not sets and not pick:
         log.error(
@@ -248,7 +238,6 @@ def deploy_dry_run(
     all_services,
     env_values,
     template_dir,
-    env_dir_name,
     scale_resources,
     pick,
     skip,
@@ -256,7 +245,7 @@ def deploy_dry_run(
     to_dir,
 ):
     template_dir, env_config_handler, specific_component, sets_selected, _ = _parse_args(
-        template_dir, env_values, env_dir_name, all_services, sets, pick, dst_project
+        template_dir, env_values, all_services, sets, pick, dst_project
     )
 
     # No need to set up SecretImporter, it won't be used in a dry run
@@ -268,7 +257,7 @@ def deploy_dry_run(
         ignore_requires=True,  # ignore for a dry run
         service_sets_selected=sets_selected,
         resources_scale_factor=scale_resources,
-        custom_dir=None,  # won't be used in a dry run
+        root_custom_dir=None,  # won't be used in a dry run
         specific_component=specific_component,
         label=None,
         skip=skip.split(",") if skip else None,
@@ -299,8 +288,9 @@ def deploy_dry_run(
 @click.option(
     "--custom-dir",
     "-u",
+    "root_custom_dir",
     default=None,
-    help="Specify custom deploy scripts directory (default 'custom')",
+    help="(legacy) specify root custom deploy scripts directory (default 'custom')",
 )
 @click.option(
     "--label",
@@ -321,18 +311,17 @@ def deploy_to_project(
     secrets_src_project,
     env_values,
     template_dir,
-    env_dir_name,
     ignore_requires,
     scale_resources,
-    custom_dir,
+    root_custom_dir,
     pick,
     label,
     skip,
     watch,
 ):
-    if not custom_dir:
+    if not root_custom_dir:
         path = appdirs_path / "custom"
-        custom_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "custom"
+        root_custom_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "custom"
 
     if not secrets_local_dir:
         path = appdirs_path / "secrets"
@@ -348,7 +337,7 @@ def deploy_to_project(
     SecretImporter.source_project = secrets_src_project
 
     template_dir, env_config_handler, specific_component, sets_selected, confirm_msg = _parse_args(
-        template_dir, env_values, env_dir_name, all_services, sets, pick, dst_project
+        template_dir, env_values, all_services, sets, pick, dst_project
     )
 
     if not no_confirm and not prompter.yesno(confirm_msg):
@@ -367,7 +356,7 @@ def deploy_to_project(
         ignore_requires=ignore_requires,
         service_sets_selected=sets_selected,
         resources_scale_factor=scale_resources,
-        custom_dir=custom_dir,
+        root_custom_dir=root_custom_dir,
         specific_component=specific_component,
         label=label,
         skip=skip.split(",") if skip else None,
