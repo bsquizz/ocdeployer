@@ -128,13 +128,13 @@ _common_options = [
     ),
     click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"),
     click.option(
-        "--env",
+        "--env/--env-file",
         "-e",
         "env_values",
         help=(
             "Name of environment to load variables from (default: None).  Use this option multiple"
             " times to concatenate environment configurations. The env listed first takes priority."
-            "  You can also specify filenames here (see docs on legacy env file processing)."
+            "  You can also specify filenames here (see 'Environment Files' in README)."
         ),
         multiple=True,
     ),

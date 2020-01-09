@@ -8,34 +8,58 @@ Suppose we have a project that consists of two groups of services:
 * set1 -- which has nginx and a postgres DB
 * set2 -- which has a ruby "hello-world" app, and a MySQL DB
 
-`set2` relies on `set1` as a dependency before it can be deployed. In addition, we want to be able to re-use the same templates to
-deploy to two different environments (QA & Prod). In addition, we have a few "special things" we want to do after deploying `set2` -- in other words, simply running `oc process` on the templates, `oc apply` to install them, and waiting for their `DeploymentConfig`
+`set2` relies on `set1` as a dependency before it can be deployed. In addition, we want to be able to re-use the same templates to deploy to two different environments (QA & Prod). In addition, we have a few "special things" we want to do after deploying `set2` -- in other words, simply running `oc process` on the templates, `oc apply` to install them, and waiting for their `DeploymentConfig`
 to switch to `active` isn't enough. We have some extra things to do.
 
 ## Implementing the example
 
-1) In our `templates` directory, we create a `_cfg.yml` to define the order in which each set should be deployed. We could deploy
-`set1` and `set2` in the same stage, but remember that `set2` depends on `set1` being deployed first, so we'll use two separate stages here.
-A `stage` denotes a boundary -- we won't move on to the next stage until all components in the current stage are ready. If `return_immediately`
-is set to `True`, however, we won't wait for the deployments to reach `active` state and we'll move right on to the next stage.
+The project structure will be as follows:
 
-    ```yaml
-    deploy_order:
-    # Defines the order components should be deployed in.
-    # If you specify components with "-c", only those components will be deployed, but
-    # the order in which they are deployed will be preserved.
-    stage0:
-        return_immediately: False
-        # You can optionally define the timeout on a stage. We'll wait <timeout> sec for deployments to become active before timing out.
-        # The default is 300 sec
-        #timeout: 400
-        components:
-        - "set1"
-    stage1:
-        return_immediately: False
-        components:
-        - "set2"
-    ```
+```
+├── env
+│   ├── prod-env.yml
+│   └── qa-env.yml
+├── secrets
+│   ├── mysql-secrets.yml
+│   └── postgres-secrets.yml
+└── templates
+    ├── _cfg.yml
+    ├── set1
+    │   ├── _cfg.yml
+    │   ├── env
+    │   │   └── qa-env.yml
+    │   ├── nginx.yml
+    │   └── postgres.yml
+    └── set2
+        ├── _cfg.yml
+        ├── custom
+        │   └── deploy.py
+        ├── mysql.yml
+        └── ruby-app.yml
+```
+
+1) In our `templates` directory, we create a `_cfg.yml` to define the order in which each set should be deployed. We could deploy `set1` and `set2` in the same stage, but remember that `set2` depends on `set1` being deployed first, so we'll use two separate stages here.
+
+    A `stage` denotes a boundary -- we won't move on to the next stage until all components in the current stage are ready. If `return_immediately` is set to `True`, however, we won't wait for the deployments to reach `active` state and we'll move right on to the next stage.
+
+      ```yaml
+      deploy_order:
+      # Defines the order components should be deployed in.
+      # If you specify components with "-c", only those components will be deployed, but
+      # the order in which they are deployed will be preserved.
+      stage0:
+          return_immediately: False
+          # You can optionally define the timeout on a stage. We'll wait <timeout> sec for deployments to become active before timing out.
+          # The default is 300 sec
+          #timeout: 400
+          components:
+          - "set1"
+      stage1:
+          return_immediately: False
+          components:
+          - "set2"
+      ```
+
 2) In the `templates` directory, we create two folders to represent each service set: `templates/set1` and `templates/set2`. We'll put the OpenShift YAML templates files into their appropriate directory: `nginx.yml` and `postgres.yml` go in `set1`, `mysql.yml` and `ruby-app.yml` go in `set2`. In addition, each service set folder gets its own `_cfg.yml` to define how that service set is deployed.
 
     `templates/set1/_cfg.yml` looks like this:
@@ -90,7 +114,7 @@ is set to `True`, however, we won't wait for the deployments to reach `active` s
         - "ruby-app"
     ```
 
-3) `set2` contains custom deploy logic, in `custom/deploy_set2.py`. There is a `post_deploy` method defined in there to do some "extra work" after the deploy has occurred. As an example, in this script we patch a `ConfigMap` with updated info after the `nginx1` service has been deployed and we are able to see what the frontend's auto-generated route is.
+3) `set2` contains custom deploy logic, in `templates/set2/custom/deploy.py`. There is a `post_deploy` method defined in there to do some "extra work" after the deploy has occurred. As an example, in this script we patch a `ConfigMap` with updated info after the `nginx1` service has been deployed and we are able to see what the frontend's auto-generated route is.
 
     ```python
     import json
@@ -110,12 +134,13 @@ is set to `True`, however, we won't wait for the deployments to reach `active` s
         rollout(deployment_name)
     ```
 
-4) The secrets these templates rely on which are too sensitive to store in the template data itself are kept in a yaml file (or copied into it at deploy runtime) in the `secrets` directory.
-See [mysql-secrets.yml](secrets/mysql-secrets.yml) and [postgres-secrets.yml](secrets/postgres-secrets.yml).
+4) The secrets these templates rely on which are too sensitive to store in the template data itself are kept in a yaml file (or copied into it at deploy runtime) in the `secrets` directory. See [mysql-secrets.yml](secrets/mysql-secrets.yml) and [postgres-secrets.yml](secrets/postgres-secrets.yml).
 
-5) We define two environment files:
+5) We define two environment files in the `root` env dir:
 * [prod-env.yml](prod-env.yml) -- defines the variables that apply when deploying these services to production
 * [qa-env.yml](qa-env.yml) -- defines the variables that apply when deploying these services to a QA env
+
+6) For the sake of the example, we also define a service-set environment file at `templates/set1/env/qa-env.yml`. This env file overrides a couple options that will be specific to only service set 1 in the qa env.
 
 ## Running the deploy
 
@@ -123,15 +148,15 @@ Now, we can do the following:
 
 Deploy only set1 to project 'myproject' using QA env settings
 
-`$ ocdeployer deploy -s set1 -e qa-env.yml myproject`
+`$ ocdeployer deploy -s set1 -e qa-env myproject`
 
 Deploy all service sets to project 'myproject' using production env settings
 
-`$ ocdeployer deploy -a -e prod-env.yml myproject`
+`$ ocdeployer deploy -a -e prod-env myproject`
 
 If we had more sets, you could deploy only set1 and set2 with the below command. Note that even though we have listed `set2` first, it will still get deployed in the order the service sets are listed in `_cfg.yml`
 
-`$ ocdeployer deploy -s set2,set1 -e prod-env.yml myrpoject`
+`$ ocdeployer deploy -s set2,set1 -e prod-env myproject`
 
 ## High-level steps of the deploy process
 
@@ -140,8 +165,9 @@ If we had more sets, you could deploy only set1 and set2 with the below command.
 2) Imports any needed secrets from the secrets local dir, or from a separate OpenShift project. NOTE: if any secrets exist with the same name in the project, they will be overwritten.
 3) Runs custom pre-deploy logic, if any is defined.
 4) For each stage, it deploys the components in the configured order. If the default `deploy` logic is not overwritten by a custom deploy method:
-* the template is run through jinja2 processing first. jinja2 processing will use any values in the env.yaml that are not defined as 'parameters'
-* the template is then processed via `oc process -f` and the `parameters` defined in the env file are passed in. If a parameter exists in the env file but it is NOT defined in the template, it will not be passed in.
-* `oc apply` is run for the processed template. This means you can "re-deploy" over an existing deployment, and if items already exist the config for them is just overwritten.
-5) Waits for any `DeploymentConfigs` that were just configured to reach "active" state (it waits for all components in a stage in parallel), then moves on to the next stage.
+    * the service-set env file is merged into the root-level env file.
+    * using the env settings, the template is run through jinja2 processing first. jinja2 processing will use any values in the env config for each component that are not defined as 'parameters'
+    * the template is then processed via `oc process -f` and the `parameters` defined on components in the env file are passed in. If a parameter exists in the env file but it is NOT defined in the template, it will not be passed in.
+    * `oc apply` is run for the processed template. This means you can "re-deploy" over an existing deployment, and if items already exist, the config for them is just overwritten.
+5) Waits for any `BuildConfigs` that were just deployed to build successfully, and `DeploymentConfigs` that were just configured to reach "active" state, then moves on to the next stage. *NOTE* it waits for all components in parallel
 6) When all stages are completed in the service set, it runs custom post-deploy logic for the service set, if any is defined.
