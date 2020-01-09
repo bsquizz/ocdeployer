@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-import appdirs
 import click
 import logging
 import os
-import pathlib
 import json
-import subprocess
 import sys
 import re
-import shutil
 
 import prompter
 import yaml
@@ -18,6 +14,7 @@ import yaml
 from ocdeployer.utils import (
     all_sets,
     oc,
+    get_dir,
     get_routes,
     switch_to_project,
     get_server_info,
@@ -31,7 +28,6 @@ from ocdeployer.events import start_event_watcher
 log = logging.getLogger("ocdeployer")
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("sh").setLevel(logging.CRITICAL)
-appdirs_path = pathlib.Path(appdirs.user_cache_dir(appname="ocdeployer"))
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -128,7 +124,7 @@ _common_options = [
     ),
     click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"),
     click.option(
-        "--env/--env-file",
+        "--env",
         "-e",
         "env_values",
         help=(
@@ -136,6 +132,12 @@ _common_options = [
             " times to concatenate environment configurations. The env listed first takes priority."
             "  You can also specify filenames here (see 'Environment Files' in README)."
         ),
+        multiple=True,
+    ),
+    click.option(
+        "--env-file",
+        "env_files",
+        help=("(legacy) for backward compatibility. Same as using '--env' with a filename."),
         multiple=True,
     ),
     click.option(
@@ -169,27 +171,30 @@ def output_option(func):
     return option(func)
 
 
-def _parse_args(template_dir, env_values, all_services, sets, pick, dst_project):
+def _parse_args(template_dir, env_values, env_files, all_services, sets, pick, dst_project):
     """Parses args common to 'process' and 'deploy'."""
-    if not template_dir:
-        path = appdirs_path / "templates"
-        template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "templates"
-
-    template_dir = os.path.abspath(template_dir)
+    template_dir = get_dir(template_dir, "templates", "template")
 
     # Analyze the values provided by --env to determine which config handler we are using
-    all_env_values_are_files = all([os.path.exists(value) for value in env_values])
-    some_env_values_are_files = any([os.path.exists(value) for value in env_values])
-    if all_env_values_are_files:
-        log.info("A specific filename was provided for env, using legacy env file processing")
-        env_config_handler = LegacyEnvConfigHandler(env_files=env_values)
-    elif some_env_values_are_files:
-        log.error(
-            "Error: Values for '--env' must be either all valid filenames, or all text env names"
-        )
+    if env_values and env_files:
+        log.error("You cannot use both --env and --env-file")
         sys.exit(1)
-    else:
-        env_config_handler = EnvConfigHandler(env_names=env_values)
+    elif env_values:
+        all_env_values_are_files = all([os.path.exists(value) for value in env_values])
+        some_env_values_are_files = any([os.path.exists(value) for value in env_values])
+        if all_env_values_are_files:
+            log.info("A specific filename was provided for env, using legacy env file processing")
+            env_config_handler = LegacyEnvConfigHandler(env_files=env_values)
+        elif some_env_values_are_files:
+            log.error("Error: Values for '--env' must be either all filenames, or all env names")
+            sys.exit(1)
+        else:
+            env_config_handler = EnvConfigHandler(env_names=env_values)
+    elif env_files:
+        log.info("A specific filename was provided for env, using legacy env file processing")
+        env_config_handler = LegacyEnvConfigHandler(env_files=env_files)
+
+    log.info("Using environments: %s", ", ".join(env_values or env_files))
 
     if not all_services and not sets and not pick:
         log.error(
@@ -237,6 +242,7 @@ def deploy_dry_run(
     sets,
     all_services,
     env_values,
+    env_files,
     template_dir,
     scale_resources,
     pick,
@@ -245,7 +251,7 @@ def deploy_dry_run(
     to_dir,
 ):
     template_dir, env_config_handler, specific_component, sets_selected, _ = _parse_args(
-        template_dir, env_values, all_services, sets, pick, dst_project
+        template_dir, env_values, env_files, all_services, sets, pick, dst_project
     )
 
     # No need to set up SecretImporter, it won't be used in a dry run
@@ -310,6 +316,7 @@ def deploy_to_project(
     all_services,
     secrets_src_project,
     env_values,
+    env_files,
     template_dir,
     ignore_requires,
     scale_resources,
@@ -319,13 +326,8 @@ def deploy_to_project(
     skip,
     watch,
 ):
-    if not root_custom_dir:
-        path = appdirs_path / "custom"
-        root_custom_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "custom"
-
-    if not secrets_local_dir:
-        path = appdirs_path / "secrets"
-        secrets_local_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "secrets"
+    root_custom_dir = get_dir(root_custom_dir, "custom", "custom scripts", optional=True)
+    secrets_local_dir = get_dir(secrets_local_dir, "secrets", "secrets", optional=True)
 
     if not dst_project:
         log.error("Error: no destination project given")
@@ -337,7 +339,7 @@ def deploy_to_project(
     SecretImporter.source_project = secrets_src_project
 
     template_dir, env_config_handler, specific_component, sets_selected, confirm_msg = _parse_args(
-        template_dir, env_values, all_services, sets, pick, dst_project
+        template_dir, env_values, env_files, all_services, sets, pick, dst_project
     )
 
     if not no_confirm and not prompter.yesno(confirm_msg):
@@ -391,67 +393,8 @@ def list_act_routes(dst_project, output):
 @click.option("--template-dir", "-t", default=None, help="Template directory (default 'templates')")
 @output_option
 def list_act_sets(template_dir, output):
-    if template_dir is None:
-        path = appdirs_path / "templates"
-        template_dir = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / "templates"
+    template_dir = get_dir(template_dir, "templates", "template")
     return list_sets(template_dir, output)
-
-
-@main.group("cache")
-def cache():
-    """Used for updating or deleting local template cache"""
-    pass
-
-
-@cache.command("initialize", help="Fetch new template cache")
-@click.option(
-    "--install-dir",
-    "-i",
-    default=appdirs_path,
-    help="Location to store cached templates and configs",
-)
-@click.argument("url")
-def initialize_cache(install_dir, url):
-    if not install_dir.exists():
-        proc = subprocess.Popen(["git", "clone", url, str(install_dir)])
-        proc.wait()
-    else:
-        print(
-            f"{install_dir} already exists, use --update to update files"
-            f" or --delete to clear current cache"
-        )
-
-
-@cache.command("update", help="Update template cache files")
-@click.option(
-    "--install-dir",
-    "-i",
-    default=appdirs_path,
-    help="Location to store cached templates and configs",
-)
-def update_cache(install_dir):
-    my_env = os.environ.copy()
-    my_env["GIT_WORK_TREE"] = str(install_dir)
-    git_dir = install_dir / ".git"
-
-    args = ["git", "--git-dir", str(git_dir), "pull", "origin", "master"]
-    proc = subprocess.Popen(args, env=my_env)
-    proc.wait()
-
-
-@cache.command("delete", help="Delete current template cache")
-@click.option(
-    "--install-dir",
-    "-i",
-    default=appdirs_path,
-    help="Location to store cached templates and configs",
-)
-def delete_cache(install_dir):
-    if not install_dir.exists():
-        print(f"{install_dir} already deleted please use initialize to create new cache")
-    else:
-        click.confirm(f"Are you sure you want to delete {install_dir}?", abort=True)
-        shutil.rmtree(install_dir)
 
 
 if __name__ == "__main__":

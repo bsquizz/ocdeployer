@@ -2,15 +2,12 @@ import copy
 import os
 from collections import defaultdict
 
-import appdirs
-import pathlib
 from cached_property import cached_property
 
-from .utils import get_cfg_files_in_dir, load_cfg_file, object_merge
+from .utils import get_cfg_files_in_dir, get_dir, load_cfg_file, object_merge
 
 
 GLOBAL = "global"
-APPDIRS_PATH = pathlib.Path(appdirs.user_cache_dir(appname="ocdeployer"))
 
 
 def convert_to_regular_dict(data):
@@ -25,9 +22,8 @@ def nested_dict():
 
 class EnvConfigHandler:
     def __init__(self, env_names, env_dir_name="env"):
-        path = APPDIRS_PATH / env_dir_name
-        path = path if path.exists() else pathlib.Path(pathlib.os.getcwd()) / env_dir_name
-        self.base_env_path = os.path.abspath(path)
+        env_path = os.path.join(os.getcwd(), env_dir_name)
+        self.base_env_path = get_dir(env_path, env_path, "environment")  # ensures path is valid dir
         self.env_dir_name = env_dir_name
         self.env_names = env_names
         self._last_service_set = None
@@ -134,6 +130,7 @@ class EnvConfigHandler:
         "global" is a reserved service set name and component name
         """
         path = os.path.join(service_set_dir, self.env_dir_name)
+        path = get_dir(path, path, "environment")  # ensures path is valid dir
 
         vars_per_env = self._load_vars_per_env(path)
 

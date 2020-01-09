@@ -9,19 +9,24 @@ def patched_runner(env_values, mock_load_vars_per_env, legacy=False):
     if legacy:
         handler = LegacyEnvConfigHandler(env_files=env_values)
     else:
-        handler = EnvConfigHandler(env_names=env_values)
+        handler = EnvConfigHandler(env_names=env_values, env_dir_name="envTEST")
 
     runner = DeployRunner(None, "test-project", handler, None, None, None, None)
-    runner.base_env_path = "base/env"
+    runner.base_env_path = "base/envTEST"
     runner.env_config_handler._load_vars_per_env = mock_load_vars_per_env
     return runner
 
 
 def build_mock_loader(base_env_data, service_set_env_data={}):
     def mock_load_vars_per_env(path=None):
-        if path is None or path == "base/env":
+        print(f"Mock loader received path: {path}")
+        if path is None:
             return base_env_data
-        if path == "templates/service/env":
+        if "base" in "path" and path.endswith("envTEST"):
+            print("Loading mock base data")
+            return base_env_data
+        if "templates" in path and "service" in path and path.endswith("envTEST"):
+            print("Loading mock service set data")
             return service_set_env_data
         return {}
 
@@ -29,7 +34,7 @@ def build_mock_loader(base_env_data, service_set_env_data={}):
 
 
 @pytest.mark.parametrize("legacy", (True, False), ids=("legacy=true", "legacy=false"))
-def test__get_variables_sanity(legacy):
+def test__get_variables_sanity(legacy, patch_os_path):
     mock_var_data = {
         "test_env": {
             "service": {
@@ -55,7 +60,7 @@ def test__get_variables_sanity(legacy):
 
 
 @pytest.mark.parametrize("legacy", (True, False), ids=("legacy=true", "legacy=false"))
-def test__get_variables_merge_from_global(legacy):
+def test__get_variables_merge_from_global(legacy, patch_os_path):
     mock_var_data = {
         "test_env": {
             "global": {"global_variable": "global-value", "parameters": {"GLOBAL": "things"}},
@@ -85,7 +90,7 @@ def test__get_variables_merge_from_global(legacy):
 
 
 @pytest.mark.parametrize("legacy", (True, False), ids=("legacy=true", "legacy=false"))
-def test__get_variables_service_overwrite_parameter(legacy):
+def test__get_variables_service_overwrite_parameter(legacy, patch_os_path):
     mock_var_data = {
         "test_env": {
             "global": {"parameters": {"STUFF": "things"}},
@@ -106,7 +111,7 @@ def test__get_variables_service_overwrite_parameter(legacy):
 
 
 @pytest.mark.parametrize("legacy", (True, False), ids=("legacy=true", "legacy=false"))
-def test__get_variables_service_overwrite_variable(legacy):
+def test__get_variables_service_overwrite_variable(legacy, patch_os_path):
     mock_var_data = {"test_env": {"global": {"enable_db": False}, "service": {"enable_db": True}}}
 
     expected = {
@@ -122,7 +127,7 @@ def test__get_variables_service_overwrite_variable(legacy):
 
 
 @pytest.mark.parametrize("legacy", (True, False), ids=("legacy=true", "legacy=false"))
-def test__get_variables_component_overwrite_parameter(legacy):
+def test__get_variables_component_overwrite_parameter(legacy, patch_os_path):
     mock_var_data = {
         "test_env": {
             "global": {"parameters": {"STUFF": "things"}},
@@ -145,7 +150,7 @@ def test__get_variables_component_overwrite_parameter(legacy):
 
 
 @pytest.mark.parametrize("legacy", (True, False), ids=("legacy=true", "legacy=false"))
-def test__get_variables_component_overwrite_variable(legacy):
+def test__get_variables_component_overwrite_variable(legacy, patch_os_path):
     mock_var_data = {
         "test_env": {
             "global": {"enable_routes": False},
@@ -167,7 +172,7 @@ def test__get_variables_component_overwrite_variable(legacy):
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
-def test__get_variables_base_and_service_set():
+def test__get_variables_base_and_service_set(patch_os_path):
     base_var_data = {
         "test_env": {
             "global": {"global_var": "base_global", "parameters": {"GLOBAL_PARAM": "things"}}
@@ -198,7 +203,7 @@ def test__get_variables_base_and_service_set():
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
-def test__get_variables_service_set_only():
+def test__get_variables_service_set_only(patch_os_path):
     base_var_data = {}
 
     service_set_var_data = {
@@ -223,7 +228,7 @@ def test__get_variables_service_set_only():
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
-def test__get_variables_service_set_overrides():
+def test__get_variables_service_set_overrides(patch_os_path):
     base_var_data = {
         "test_env": {
             "global": {"global_var": "base_global", "parameters": {"GLOBAL_PARAM": "things"}},
@@ -256,7 +261,7 @@ def test__get_variables_service_set_overrides():
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
-def test__get_variables_multiple_envs():
+def test__get_variables_multiple_envs(patch_os_path):
     base_var_data = {
         "test_env": {
             "global": {"global_var": "base_global1", "parameters": {"GLOBAL_PARAM": "things1"}},
@@ -304,7 +309,7 @@ def test__get_variables_multiple_envs():
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
-def test__get_variables_multiple_envs_legacy():
+def test__get_variables_multiple_envs_legacy(patch_os_path):
     base_var_data = {
         "test_env": {
             "global": {"global_var": "base_global1", "parameters": {"GLOBAL_PARAM": "things1"}},
