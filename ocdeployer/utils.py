@@ -109,6 +109,22 @@ def load_cfg_file(path):
     return content
 
 
+def get_dir(value, default_value, dir_type, optional=False):
+    path = value or default_value
+    required_dir_does_not_exist = not optional and not os.path.exists(path)
+    required_dir_is_not_a_dir = not optional and not os.path.isdir(path)
+    path_exists_but_not_a_dir = os.path.exists(path) and not os.path.isdir(path)
+    if required_dir_does_not_exist:
+        log.error("%s directory missing: %s", dir_type, path)
+        sys.exit(1)
+    if required_dir_is_not_a_dir or path_exists_but_not_a_dir:
+        log.error("%s directory invalid: %s", dir_type, path)
+        sys.exit(1)
+    path = os.path.abspath(path)
+    log.info("Found %s path: %s", dir_type, path)
+    return path
+
+
 def all_sets(template_dir):
     try:
         cfg_data = load_cfg_file(f"{template_dir}/_cfg.yaml")

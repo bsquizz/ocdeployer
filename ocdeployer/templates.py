@@ -202,7 +202,7 @@ class Template(object):
         )
 
         if skipped_params:
-            log.warning(
+            log.info(
                 "Skipped parameters defined in config but not present in template: %s",
                 ", ".join(skipped_params),
             )
