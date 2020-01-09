@@ -99,7 +99,6 @@ Options:
   -h, --help  Show this message and exit.
 
 Commands:
-  cache        Used for updating or deleting local template cache
   deploy       Deploy to project
   list-routes  List routes currently in the project
   list-sets    List service sets available in template dir
@@ -134,25 +133,6 @@ Use `list-routes` to simply print the URLs for active routes in a project
 #### List-sets command
 
 Use `list-sets` to simply print the names of service sets that are available for deployment in your templates directory.
-
-#### Cache command
-
-The `cache` command provides a shortcut method to store a git repository of templates in your local application cache folder. If the cache has been initialized and the folder exists, `ocdeployer` uses this folder as its default location instead of the current working directory.
-
-The implementation uses the `appdirs` cache folder, therefore...
-
-* the default templates dir becomes:
-  - Linux: `/home/<username>/.cache/ocdeployer/templates`
-  - Mac: `/Users/USERNAME/Library/Application Support/ocdeployer/templates`
-* the default scripts dir becomes:
-  - Linux: `/home/<username>/.cache/ocdeployer/custom`
-  - Mac: `/Users/USERNAME/Library/Application Support/ocdeployer/custom`
-* the default secrets dir becomes:
-  - Linux: `/home/<username>/.cache/ocdeployer/secrets`
-  - Mac: `/Users/USERNAME/Library/Application Support/ocdeployer/secrets`
-
-
-Note these defaults are only used IF the cache directory for `ocdeployer` is present.
 
 ---
 ## Template Configuration
