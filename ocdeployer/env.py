@@ -130,7 +130,7 @@ class EnvConfigHandler:
         "global" is a reserved service set name and component name
         """
         path = os.path.join(service_set_dir, self.env_dir_name)
-        path = get_dir(path, path, "environment")  # ensures path is valid dir
+        path = get_dir(path, path, "environment", optional="True")  # ensures path is valid dir
 
         vars_per_env = self._load_vars_per_env(path)
 
