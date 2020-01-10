@@ -2,11 +2,20 @@ language: python
 dist: xenial
 sudo: required
 python:
-  - "3.6"
-  - "3.7"
+- '3.6'
+- '3.7'
 cache: pip
 install:
-  - pip install -r requirements-test.txt
+- pip install -r requirements-test.txt
 script:
-  - flake8 --max-line-length 100 ocdeployer/*.py tests/*.py setup.py
-  - pytest
+- flake8 --max-line-length 100 ocdeployer/*.py tests/*.py setup.py
+- pytest
+deploy:
+  provider: pypi
+  user: __token__
+  distributions: "sdist bdist_wheel"
+  skip_existing: true
+  on:
+    tags: true
+  password:
+    secure: DW3z6aJv7FGcQThzPjgNwwppCuJ23RK4FJ7AhbCe3nSnrM+VlzDqmBwYG/gXQ7mV9UnANTPvYRg1O1YLO3NBPMseDG66CcLPE0uQb2uLCJMlOoOPAS9qzRW3JXQdzA2fZsljPVvHX1fr+7WXke3t9osxBOBhGNSxGE1/MnzS92skJ5ZQhBhdUk9tTn8V5HOPSIRVx+eE8n+bSuGuhQpIRtE6dk+iFqgveZFFOsALylzvpXL9f+Ryau+SahROTdZubr6hB/fVnNBU56NbvzHCRqm373gRYelOVkw8YkjW+uZaJw9/40mBXqsAdgOxuA+j+yKXnutNKYFhp+00km/6VWzkdQ2nSpKcdQpI3sFoGMR6CVqouVWVQKFqe/RlvDZMvwV0Ktm/9bPxPzT8KejHv9AKqdj2XoJXzta0+Zk33y/0jpCRdrwRWhNX2gllt4EpIAs7z7/fi1Ccwn70aZHLKfit8XaCWbbRzqYCJm8qB6/ggkimn5CWZ1LNVNBP8lgOY3dGKxZfVj4nvXCkDtVuq6u+nTHplbKUghSOcxlWOxb/i4z3SyP5Ypfe2zHN8YPlvuWEy+UvzQ6aC3/JMgDXfvJQXoFfesKHRpu6C6aORCmd8BziX+H0gJ6oK55wRmG0C505a+rMuHohQgQyDFnmyhbDQ/eZ1KWJSnSl+5Ro/rM=
