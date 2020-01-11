@@ -6,14 +6,18 @@ from ocdeployer.env import EnvConfigHandler, LegacyEnvConfigHandler
 
 
 def patched_runner(env_values, mock_load_vars_per_env, legacy=False):
-    if legacy:
+    if not env_values:
+        handler = None
+    elif legacy:
         handler = LegacyEnvConfigHandler(env_files=env_values)
     else:
         handler = EnvConfigHandler(env_names=env_values, env_dir_name="envTEST")
 
     runner = DeployRunner(None, "test-project", handler, None, None, None, None)
     runner.base_env_path = "base/envTEST"
-    runner.env_config_handler._load_vars_per_env = mock_load_vars_per_env
+
+    if handler:
+        runner.env_config_handler._load_vars_per_env = mock_load_vars_per_env
     return runner
 
 
@@ -31,6 +35,18 @@ def build_mock_loader(base_env_data, service_set_env_data={}):
         return {}
 
     return mock_load_vars_per_env
+
+
+def test__no_env_given():
+    expected = {
+        "parameters": {
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project,
+        },
+    }
+
+    runner = patched_runner(None, None, legacy=False)
+    assert runner._get_variables("service", "templates/service", "some_component") == expected
 
 
 @pytest.mark.parametrize("legacy", (True, False), ids=("legacy=true", "legacy=false"))

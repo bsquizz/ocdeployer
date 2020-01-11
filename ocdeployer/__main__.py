@@ -193,6 +193,8 @@ def _parse_args(template_dir, env_values, env_files, all_services, sets, pick, d
     elif env_files:
         log.info("A specific filename was provided for env, using legacy env file processing")
         env_config_handler = LegacyEnvConfigHandler(env_files=env_files)
+    else:
+        env_config_handler = EnvConfigHandler(env_names=[])
 
     log.info("Using environments: %s", ", ".join(env_values or env_files))
 

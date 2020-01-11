@@ -282,11 +282,16 @@ class DeployRunner(object):
         self.env_config_handler = env_config_handler
 
     def _get_variables(self, service_set_name, service_set_dir, component):
-        variables = self.env_config_handler.get_vars_for_component(
-            service_set_dir, service_set_name, component
-        )
+        if self.env_config_handler:
+            variables = self.env_config_handler.get_vars_for_component(
+                service_set_dir, service_set_name, component
+            )
+        else:
+            variables = {}
 
         # ocdeployer adds the "NAMESPACE" and "SECRETS_PROJECT" parameter by default at deploy time
+        if "parameters" not in variables:
+            variables["parameters"] = {}
         variables["parameters"].update(
             {"NAMESPACE": self.project_name, "SECRETS_PROJECT": SecretImporter.source_project}
         )
