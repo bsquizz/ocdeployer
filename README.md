@@ -449,6 +449,7 @@ env2.yaml
 ```yaml
 global:
   my_value: false
+  my_other_value: true
 ```
 
 Running the following command:
@@ -456,12 +457,12 @@ Running the following command:
 (venv) $ ocdeployer deploy -s myset -e env1 -e env2 myproject
 ```
 
-Results in env1.yaml and env2.yaml being merged. Since env2 is listed later in the list, any matching parameter entries in this file will override those of env1. The result is a values file which looks like:
+Results in env1.yaml and env2.yaml being merged. Since env1 is listed FIRST in the list, any matching parameter entries in this file will override those of env2. The result is a values file which looks like:
 
 ```yaml
 global:
-  my_value: false
-  my_other_value: false
+  my_value: true
+  my_other_value: true
 ```
 
 ## Common usage
