@@ -8,6 +8,8 @@ import os
 import sys
 import yaml
 
+from sh import ErrorReturnCode
+
 from .utils import load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import SecretImporter
 from .templates import get_templates_in_dir
@@ -143,7 +145,25 @@ def _handle_secrets_and_imgs(config):
 
     # Import the specified images
     for img_name, img_src in config.get("images", {}).items():
-        oc("import-image", img_name, "--from={}".format(img_src), "--confirm")
+        try:
+            oc(
+                "import-image",
+                img_name,
+                "--from={}".format(img_src),
+                "--confirm",
+                "--scheduled=True",
+                _reraise=True,
+            )
+        except ErrorReturnCode as err:
+            img_name_split = img_name.split(":")
+            img_name = img_name_split[0]
+            if len(img_name_split) < 2:
+                img_tag = "latest"
+            else:
+                img_tag = img_name_split[1:]
+
+            if "use the 'tag' command if you want to change the source" in str(err.stderr):
+                oc("tag", "--scheduled=True", "--source=docker", img_src, f"{img_name}:{img_tag}")
 
 
 def _load_module(path, service_set):

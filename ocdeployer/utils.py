@@ -200,7 +200,7 @@ def oc(*args, **kwargs):
         return sh.oc(
             *args, **kwargs, _tee=True, _out=_out_line_handler, _err=_err_line_handler
         ).wait()
-    except ErrorReturnCode:
+    except ErrorReturnCode as err:
         immutable_errors_only = False
 
         # Ignore warnings that are printed to stderr
@@ -214,7 +214,12 @@ def oc(*args, **kwargs):
         if immutable_errors_only and _ignore_immutable:
             log.warning("Ignoring immutable field errors")
         elif _reraise:
-            raise
+            # Sometimes stdout/stderr is empty in the exception even though we appended
+            # data in the callback. Perhaps buffers are not being flushed ... so just
+            # set the out lines/err lines we captured on the Exception before re-raising it
+            err.stdout = "\n".join(out_lines)
+            err.stderr = "\n".join(err_lines)
+            raise err
         elif _exit_on_err:
             log.error("Command failed!  Aborting.")
             sys.exit(1)
