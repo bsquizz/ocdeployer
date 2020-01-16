@@ -281,7 +281,7 @@ class DeployRunner(object):
         service_sets_selected,
         resources_scale_factor,
         root_custom_dir,
-        specific_component=None,
+        specific_components=None,
         label=None,
         skip=None,
         dry_run=False,
@@ -294,7 +294,8 @@ class DeployRunner(object):
         self.service_sets_selected = service_sets_selected
         self.resources_scale_factor = resources_scale_factor
         self._deployed_service_sets = []
-        self.specific_component = specific_component
+        self.specific_components = specific_components
+        self._pick_service_sets = [comp.split("/")[0] for comp in self.specific_components]
         self.label = label
         self.skip = skip
         self.dry_run = dry_run
@@ -389,22 +390,25 @@ class DeployRunner(object):
         self, deploy_func, variables_per_component, stage, deploy_order, service_set, dir_path
     ):
         components = deploy_order[stage].get("components", [])
-        if self.specific_component:
-            if self.specific_component in components:
-                # If a single component has been 'picked', deploy only that one
-                components = [self.specific_component]
-            else:
-                # If the single component is not in this stage, do not run deploy for this stage
-                log.info(
-                    "Skipping stage '%s', component '%s' is not part of this stage",
-                    stage,
-                    self.specific_component,
-                )
-                return {}
+        comps_with_set_name = [f"{service_set}/{comp}" for comp in components]
+
+        if service_set in self.service_sets_selected:
+            components_to_deploy = components
+        elif self.specific_components:
+            # If a component has been 'picked', deploy it
+            components_to_deploy = [
+                c.split("/")[1] for c in self.specific_components if c in comps_with_set_name
+            ]
+
+        if not components_to_deploy:
+            log.info(
+                "Skipping stage '%s', no selected components are part of this stage", stage,
+            )
+            return {}
 
         return self._enter_stage(
             deploy_func,
-            components,
+            components_to_deploy,
             variables_per_component,
             stage,
             deploy_order,
@@ -493,12 +497,12 @@ class DeployRunner(object):
         all_service_sets = []
         for stage, stage_data in deploy_order.items():
             all_service_sets.extend(stage_data.get("components", []))
-        if self.service_sets_selected:
-            for service_set in self.service_sets_selected:
-                if service_set not in all_service_sets:
-                    raise ValueError(
-                        "Service set '{}' not found in base config.".format(service_set)
-                    )
+
+        sets_for_deploy = set(self.service_sets_selected + self._pick_service_sets)
+
+        for service_set in sets_for_deploy:
+            if service_set not in all_service_sets:
+                raise ValueError("Service set '{}' not found in base config.".format(service_set))
 
         # Deploy the service sets in proper order
         all_processed_templates = {}
@@ -506,7 +510,7 @@ class DeployRunner(object):
         for stage in sorted(deploy_order.keys()):
             service_sets = deploy_order[stage].get("components", [])
             for service_set in service_sets:
-                if self.service_sets_selected and service_set not in self.service_sets_selected:
+                if service_set not in sets_for_deploy:
                     log.info(
                         "Skipping service set '%s', not selected for deploy at runtime", service_set
                     )

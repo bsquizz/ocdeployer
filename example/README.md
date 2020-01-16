@@ -158,6 +158,12 @@ If we had more sets, you could deploy only set1 and set2 with the below command.
 
 `$ ocdeployer deploy -s set2,set1 -e prod-env myproject`
 
+You can use `-p` to pick single components like so:
+
+`$ ocdeployer deploy -p set1/nginx -e prod-env myproject`
+
+You can also use a comma,separated,list with `-p` to pick multiple specific components. You can combine `-s` and `-p` to deploy a mixture of entire service sets, plus single components.
+
 ## High-level steps of the deploy process
 
 `ocdeployer` essentially does the following for each service set as it deploys them:

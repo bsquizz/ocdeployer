@@ -120,9 +120,12 @@ _common_options = [
         "--pick",
         "-p",
         default=None,
-        help="Pick a single component from a service set and deploy that.  E.g. '-p myset/myvm'",
+        help=(
+            "Comma,separated,list of specific service_set/component to deploy."
+            "  E.g. '-p myset/myvm'"
+        ),
     ),
-    click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"),
+    click.option("--skip", "-k", help="Comma,separated,list of service_set/component to skip"),
     click.option(
         "--env",
         "-e",
@@ -205,29 +208,34 @@ def _parse_args(template_dir, env_values, env_files, all_services, sets, pick, d
         )
         sys.exit(1)
 
-    specific_component = None
     server = get_server_info()
 
-    if pick:
-        try:
-            service_set, specific_component = pick.split("/")
-        except ValueError:
-            log.error("Invalid format for '--pick', use: 'service_set/component'")
-            sys.exit(1)
-        sets_selected = [service_set]
-        confirm_msg = (
-            "Deploying single component '{}' to project '{}' on server {} -- continue?"
-        ).format(pick, dst_project, server)
-    else:
-        if all_services:
-            sets_selected = all_sets(template_dir)
-        else:
-            sets_selected = sets.split(",")
-        confirm_msg = (
-            "Deploying service sets '{}' to project '{}' on server {} -- continue?"
-        ).format(", ".join(sets_selected), dst_project, server)
+    sets_selected = []
+    specific_components = []
 
-    return template_dir, env_config_handler, specific_component, sets_selected, confirm_msg
+    if all_services:
+        sets_selected = all_sets(template_dir)
+    else:
+        if pick:
+            try:
+                [p.split("/")[1] for p in pick.split(",")]
+            except (ValueError, IndexError):
+                log.error("Invalid format for '--pick', use: 'service_set/component'")
+                sys.exit(1)
+            specific_components = list(set(pick.split(",")))
+        if sets:
+            sets_selected = list(set(sets.split(",")))
+
+        joined_sets = ", ".join(sets_selected)
+        joined_comps = ", ".join(specific_components)
+        sets_string = f" service sets: [{joined_sets}]" if joined_sets else ""
+        comps_string = f" components: [{joined_comps}]" if joined_comps else ""
+        confirm_msg = (
+            f"Deploying{sets_string}{comps_string} "
+            f"to project '{dst_project}' on server {server} -- continue?"
+        )
+
+    return template_dir, env_config_handler, specific_components, sets_selected, confirm_msg
 
 
 @main.command("process", help="Process templates but do not deploy")
@@ -252,7 +260,7 @@ def deploy_dry_run(
     output,
     to_dir,
 ):
-    template_dir, env_config_handler, specific_component, sets_selected, _ = _parse_args(
+    template_dir, env_config_handler, specific_components, sets_selected, _ = _parse_args(
         template_dir, env_values, env_files, all_services, sets, pick, dst_project
     )
 
@@ -266,7 +274,7 @@ def deploy_dry_run(
         service_sets_selected=sets_selected,
         resources_scale_factor=scale_resources,
         root_custom_dir=None,  # won't be used in a dry run
-        specific_component=specific_component,
+        specific_components=specific_components,
         label=None,
         skip=skip.split(",") if skip else None,
         dry_run=True,
@@ -340,7 +348,7 @@ def deploy_to_project(
     SecretImporter.local_dir = secrets_local_dir
     SecretImporter.source_project = secrets_src_project
 
-    template_dir, env_config_handler, specific_component, sets_selected, confirm_msg = _parse_args(
+    template_dir, env_config_handler, specific_components, sets_selected, confirm_msg = _parse_args(
         template_dir, env_values, env_files, all_services, sets, pick, dst_project
     )
 
@@ -361,7 +369,7 @@ def deploy_to_project(
         service_sets_selected=sets_selected,
         resources_scale_factor=scale_resources,
         root_custom_dir=root_custom_dir,
-        specific_component=specific_component,
+        specific_components=specific_components,
         label=label,
         skip=skip.split(",") if skip else None,
         dry_run=False,
