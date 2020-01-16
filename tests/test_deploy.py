@@ -14,7 +14,7 @@ def patched_runner(env_values, mock_load_vars_per_env, legacy=False):
     else:
         handler = EnvConfigHandler(env_names=env_values, env_dir_name="envTEST")
 
-    runner = DeployRunner(None, "test-project", handler, None, None, None, None)
+    runner = DeployRunner(None, "test-project", handler, None, ["service"], None, None, [])
     runner.base_env_path = "base/envTEST"
 
     if handler:
