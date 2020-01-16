@@ -120,10 +120,9 @@ _common_options = [
         "--pick",
         "-p",
         default=None,
-        help="Pick a single component from a service set and deploy that.  E.g. '-p myset/myvm'",
-        multiple=True,
+        help="Comma,separated,list of specific service_set/component to deploy.  E.g. '-p myset/myvm'",
     ),
-    click.option("--skip", "-k", help="Comma,separated,list of service_set/service_name to skip"),
+    click.option("--skip", "-k", help="Comma,separated,list of service_set/component to skip"),
     click.option(
         "--env",
         "-e",
@@ -216,11 +215,11 @@ def _parse_args(template_dir, env_values, env_files, all_services, sets, pick, d
     else:
         if pick:
             try:
-                [p.split("/")[1] for p in pick]
+                [p.split("/")[1] for p in pick.split(",")]
             except (ValueError, IndexError):
                 log.error("Invalid format for '--pick', use: 'service_set/component'")
                 sys.exit(1)
-            specific_components = list(set(pick))
+            specific_components = list(set(pick.split(",")))
         if sets:
             sets_selected = list(set(sets.split(",")))
 

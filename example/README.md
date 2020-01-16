@@ -162,7 +162,7 @@ You can use `-p` to pick single components like so:
 
 `$ ocdeployer deploy -p set1/nginx -e prod-env myproject`
 
-You can specify `-p` multiple times to pick multiple specific components. You can also combine `-s` and `-p` to deploy a mixture of entire service sets, plus single components.
+You can also use a comma,separated,list with `-p` to pick multiple specific components. You can combine `-s` and `-p` to deploy a mixture of entire service sets, plus single components.
 
 ## High-level steps of the deploy process
 
