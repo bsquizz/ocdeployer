@@ -120,7 +120,10 @@ _common_options = [
         "--pick",
         "-p",
         default=None,
-        help="Comma,separated,list of specific service_set/component to deploy.  E.g. '-p myset/myvm'",
+        help=(
+            "Comma,separated,list of specific service_set/component to deploy."
+            "  E.g. '-p myset/myvm'"
+        ),
     ),
     click.option("--skip", "-k", help="Comma,separated,list of service_set/component to skip"),
     click.option(
