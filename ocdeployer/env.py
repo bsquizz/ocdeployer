@@ -96,6 +96,9 @@ class EnvConfigHandler:
         """
         Merge vars from multiple environments together
 
+        The configs from the environments take precedence based on which order they were
+        supplied to the command line. Environments listed first take precedence.
+
         Returns a dict with keys/vals following this structure:
         {
             'service_set': {
@@ -105,12 +108,12 @@ class EnvConfigHandler:
 
         "global" is a reserved service set name and component name
         """
+        if not self.env_names:
+            raise Exception("_merge_environments called before env names known")
+
         merged_data = {}
-        for _, env_data in data.items():
-            if not merged_data:
-                merged_data = env_data
-            else:
-                object_merge(env_data, merged_data)
+        for env in self.env_names:
+            object_merge(data[env], merged_data)
 
         return merged_data
 
@@ -211,6 +214,7 @@ class LegacyEnvConfigHandler(EnvConfigHandler):
     def __init__(self, env_files):
         self.env_files = env_files
         self._last_service_set = None
+        self.env_names = []
 
     def _load_vars_per_env(self):
         data = {}
@@ -218,6 +222,7 @@ class LegacyEnvConfigHandler(EnvConfigHandler):
         for file_path in self.env_files:
             env_name = file_path
             data[env_name] = load_cfg_file(file_path)
+            self.env_names.append(env_name)
 
         return data
 

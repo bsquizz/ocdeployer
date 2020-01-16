@@ -10,6 +10,7 @@ def patched_runner(env_values, mock_load_vars_per_env, legacy=False):
         handler = None
     elif legacy:
         handler = LegacyEnvConfigHandler(env_files=env_values)
+        handler.env_names = env_values
     else:
         handler = EnvConfigHandler(env_names=env_values, env_dir_name="envTEST")
 
@@ -356,5 +357,61 @@ def test__get_variables_multiple_envs_legacy(patch_os_path):
 
     runner = patched_runner(
         ["test_env", "test_env2", "test_env3"], build_mock_loader(base_var_data), legacy=True
+    )
+    assert runner._get_variables("service", "templates/service", "component") == expected
+
+
+def test__get_variables_multiple_envs_precedence(patch_os_path):
+    base_var_data = {
+        "test_env1": {
+            "service/component": {"parameters": {"PARAM": "things1"}},
+        },
+    }
+
+    service_set_var_data = {
+        "test_env2": {
+            "component": {"parameters": {"PARAM": "things2"}},
+        },
+    }
+
+    expected = {
+        "parameters": {
+            "PARAM": "things1",
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project,
+        },
+    }
+
+    runner = patched_runner(
+        ["test_env1", "test_env2"],
+        build_mock_loader(base_var_data, service_set_var_data),
+    )
+    assert runner._get_variables("service", "templates/service", "component") == expected
+
+
+def test__get_variables_multiple_envs_precedence_reversed(patch_os_path):
+    base_var_data = {
+        "test_env1": {
+            "service/component": {"parameters": {"PARAM": "things1"}},
+        },
+    }
+
+    service_set_var_data = {
+        "test_env2": {
+            "component": {"parameters": {"PARAM": "things2"}},
+        },
+    }
+
+    expected = {
+        "parameters": {
+            "PARAM": "things2",
+            "NAMESPACE": "test-project",
+            "SECRETS_PROJECT": SecretImporter.source_project,
+        },
+    }
+
+    runner = patched_runner(
+        ["test_env2", "test_env1"],
+        build_mock_loader(base_var_data, service_set_var_data),
     )
     assert runner._get_variables("service", "templates/service", "component") == expected
