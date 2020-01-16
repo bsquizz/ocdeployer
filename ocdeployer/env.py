@@ -108,9 +108,6 @@ class EnvConfigHandler:
 
         "global" is a reserved service set name and component name
         """
-        if not self.env_names:
-            raise Exception("_merge_environments called before env names known")
-
         merged_data = {}
         for env in self.env_names:
             object_merge(data[env], merged_data)
