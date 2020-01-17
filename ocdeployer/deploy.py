@@ -159,6 +159,9 @@ def _parse_secrets(config):
                     raise ValueError("'link' in 'secrets' is not a list of strings")
 
             secrets.append({"name": name, "link": link})
+        else:
+            raise ValueError("secret data syntax for _cfg.yml is incorrect")
+
 
     return secrets
 
