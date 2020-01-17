@@ -91,15 +91,19 @@ class SecretImporter(object):
             cls.imported_secret_names.append(name)
 
     @classmethod
-    def do_import(cls, name, verify=False):
+    def do_import(cls, name, link=None, verify=False):
         """
-        Import secret to openshift project
+        Import secret to openshift project and optionally link to service accounts.
 
         If local_dir is defined, this tries to import all secrets in that dir first. If the
         secret we want is still not imported, we try to import from source_project instead
         """
         if name not in cls.imported_secret_names:
             cls._import(name)
+
+        if link:
+            for sa in link:
+                oc("secrets", "link", sa, name, "--for=pull,mount")
 
         if verify:
             exists = oc("get", "secret", name, _exit_on_err=False)

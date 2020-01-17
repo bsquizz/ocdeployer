@@ -138,10 +138,38 @@ def deploy_dry_run(
 DEFAULT_DEPLOY_METHODS = (None, deploy_components, None)
 
 
+def _parse_secrets(config):
+    secrets = []
+
+    for secret in config.get("secrets", []):
+        if isinstance(secret, str):
+            secrets.append({"name": secret, "link": []})
+        elif isinstance(secret, dict):
+            name = secret.get("name")
+            link = secret.get("link", [])
+
+            if not name:
+                raise ValueError("Secret listed in _cfg.yml is missing 'name'")
+            if link:
+                try:
+                    iter(link)
+                except TypeError:
+                    raise ValueError("'link' in 'secrets' is not a list of strings")
+                if not all([isinstance(item, str) for item in link]):
+                    raise ValueError("'link' in 'secrets' is not a list of strings")
+
+            secrets.append({"name": name, "link": link})
+        else:
+            raise ValueError("secret data syntax for _cfg.yml is incorrect")
+
+    return secrets
+
+
 def _handle_secrets_and_imgs(config):
     # Import the specified secrets
-    for secret_name in config.get("secrets", []):
-        SecretImporter.do_import(secret_name)
+    secrets = _parse_secrets(config)
+    for secret in secrets:
+        SecretImporter.do_import(**secret)
 
     # Import the specified images
     for img_name, img_src in config.get("images", {}).items():
