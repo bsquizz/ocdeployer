@@ -162,7 +162,6 @@ def _parse_secrets(config):
         else:
             raise ValueError("secret data syntax for _cfg.yml is incorrect")
 
-
     return secrets
 
 
