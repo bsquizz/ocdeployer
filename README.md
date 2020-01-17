@@ -163,6 +163,9 @@ The best way to explain how template configuration works is to describe the proc
     # secret it won't be imported again.
     secrets:
     - "mysecret"
+    # You can also specify which service accounts a secret should be linked to
+    - name: "othersecret"
+      link: ["builder"]
 
     # (optional) custom_deploy_logic
     #
@@ -331,12 +334,14 @@ def post_deploy(**kwargs):
 
 ### Secrets
 
-By default, `ocdeployer` will attempt to import secrets from the project `secrets` in OpenShift as well as by looking for secrets in the `./secrets` local directory. You can also use `--secrets-src-project` to copy secrets into your project from a different project in OpenShift, or use `--secrets-local-dir` to load secrets from Openshift config files in a directory.
+By default, `ocdeployer` will attempt to import secrets from the project `secrets` in OpenShift as well as by looking for secrets in the `./secrets` local directory. You can also use `--secrets-src-project` to copy secrets into your project from a different project in OpenShift, or use `--secrets-local-dir` to load secrets from OpenShift config files in a different directory.
 
-Any .yaml/.json files you place in the `secrets-local-dir` will be parsed and secrets will be pulled out of them and imported.
-The files can contain a single secret OR a list of resources
+If you set `--secrets-src-project` to be the same as the destination namespace, this effectively causes ocdeployer to simply validate that the secret is present in that namespace.
 
-An example secret .yaml configuration:
+Any `.yaml`/`.json` files you place in the `secrets-local-dir` will be parsed and secrets will be pulled out of them and imported.
+The files can contain a single secret (`kind: Secret`) OR a list of resources (`kind: List`)
+
+An example secret `.yaml` file:
 ```
 apiVersion: v1
 data:
@@ -347,6 +352,24 @@ metadata:
     name: my_secret
 type: kubernetes.io/ssh-auth
 ```
+
+Secrets can be specified in `_cfg.yml` in two ways:
+
+Listing just the name:
+```
+secrets:
+- "name of secret"
+```
+
+(`ocdeployer>=v4.2.0`) Listing the name as well as the service accounts the secret should be linked to using `oc secrets link`:
+```
+secrets:
+- name: "name of secret"
+  link: ["account1", "account2"]
+```
+
+Note that any links existing for a secret will not be removed at deploy time -- `ocdeployer` will only add new links.
+
 
 #### How do I export secrets from a project to use later with `--secrets-local-dir`?
 
