@@ -226,14 +226,14 @@ def _parse_args(template_dir, env_values, env_files, all_services, sets, pick, d
         if sets:
             sets_selected = list(set(sets.split(",")))
 
-        joined_sets = ", ".join(sets_selected)
-        joined_comps = ", ".join(specific_components)
-        sets_string = f" service sets: [{joined_sets}]" if joined_sets else ""
-        comps_string = f" components: [{joined_comps}]" if joined_comps else ""
-        confirm_msg = (
-            f"Deploying{sets_string}{comps_string} "
-            f"to project '{dst_project}' on server {server} -- continue?"
-        )
+    joined_sets = ", ".join(sets_selected)
+    joined_comps = ", ".join(specific_components)
+    sets_string = f" service sets: [{joined_sets}]" if joined_sets else ""
+    comps_string = f" components: [{joined_comps}]" if joined_comps else ""
+    confirm_msg = (
+        f"Deploying{sets_string}{comps_string} "
+        f"to project '{dst_project}' on server {server} -- continue?"
+    )
 
     return template_dir, env_config_handler, specific_components, sets_selected, confirm_msg
 
