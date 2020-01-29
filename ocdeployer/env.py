@@ -22,12 +22,22 @@ def nested_dict():
     return defaultdict(nested_dict)
 
 
+def _dedupe_preserve_order(seq):
+    """De-dupe a list, but preserve order of elements.
+
+    https://www.peterbe.com/plog/uniqifiers-benchmark
+    """
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
+
 class EnvConfigHandler:
     def __init__(self, env_names, env_dir_name="env"):
         env_path = os.path.join(os.getcwd(), env_dir_name)
         self.base_env_path = get_dir(env_path, env_path, "environment")  # ensures path is valid dir
         self.env_dir_name = env_dir_name
-        self.env_names = set(env_names)
+        self.env_names = _dedupe_preserve_order(env_names)
         if len(env_names) != self.env_names:
             log.warning("Duplicate env names provided: %s", env_names)
         self._last_service_set = None
@@ -220,7 +230,7 @@ class LegacyEnvConfigHandler(EnvConfigHandler):
         self.env_files = env_files
         self._last_service_set = None
         _env_names = [self._get_env_name(fp) for fp in self.env_files]
-        self.env_names = set(_env_names)
+        self.env_names = _dedupe_preserve_order(_env_names)
         if len(_env_names) != len(self.env_names):
             log.warning("Duplicate env names provided: %s", _env_names)
 
