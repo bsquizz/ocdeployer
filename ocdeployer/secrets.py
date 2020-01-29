@@ -4,7 +4,7 @@ Handles secrets
 import json
 import logging
 
-from .utils import oc, get_cfg_files_in_dir, load_cfg_file
+from .utils import oc, get_cfg_files_in_dir, load_cfg_file, validate_list_of_strs
 
 
 log = logging.getLogger(__name__)
@@ -59,6 +59,29 @@ def import_secret_from_project(project, secret_name):
     )
 
 
+def _parse_config(config):
+    secrets = []
+
+    for secret in config.get("secrets", []):
+        if isinstance(secret, str):
+            secrets.append({"name": secret, "link": [], "envs": []})
+        elif isinstance(secret, dict):
+            name = secret.get("name")
+            link = secret.get("link", [])
+            envs = secret.get("envs", [])
+
+            if not name:
+                raise ValueError("Secret listed in _cfg.yml is missing 'name'")
+            validate_list_of_strs("link", "secrets", link)
+            validate_list_of_strs("envs", "secrets", envs)
+
+            secrets.append({"name": name, "link": link, "envs": envs})
+        else:
+            raise ValueError("syntax of 'secrets' section in _cfg.yml is incorrect")
+
+    return secrets
+
+
 class SecretImporter(object):
     """
     A singleton which handles importing secrets.
@@ -91,7 +114,7 @@ class SecretImporter(object):
             cls.imported_secret_names.append(name)
 
     @classmethod
-    def do_import(cls, name, link=None, verify=False):
+    def do_import(cls, name, link=None, verify=False, **kwargs):
         """
         Import secret to openshift project and optionally link to service accounts.
 
@@ -109,3 +132,13 @@ class SecretImporter(object):
             exists = oc("get", "secret", name, _exit_on_err=False)
             if not exists:
                 raise AssertionError("secret '{}' does not exist after import".format(name))
+
+
+def import_secrets(config, env_names):
+    """Import the specified secrets listed in a _cfg.yml"""
+    secrets = _parse_config(config)
+    for secret in secrets:
+        if not secret["envs"] or any([e in env_names for e in secret["envs"]]):
+            SecretImporter.do_import(**secret)
+        else:
+            log.info("Skipping import of secret '%s', not enabled for this env", secret["name"])

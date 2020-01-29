@@ -1,4 +1,5 @@
 import copy
+import logging
 import os
 from collections import defaultdict
 
@@ -7,6 +8,7 @@ from cached_property import cached_property
 from .utils import get_cfg_files_in_dir, get_dir, load_cfg_file, object_merge
 
 
+log = logging.getLogger("ocdeployer.env")
 GLOBAL = "global"
 
 
@@ -25,7 +27,9 @@ class EnvConfigHandler:
         env_path = os.path.join(os.getcwd(), env_dir_name)
         self.base_env_path = get_dir(env_path, env_path, "environment")  # ensures path is valid dir
         self.env_dir_name = env_dir_name
-        self.env_names = env_names
+        self.env_names = set(env_names)
+        if len(env_names) != self.env_names:
+            log.warning("Duplicate env names provided: %s", env_names)
         self._last_service_set = None
         self._last_merged_vars = None
 
@@ -208,18 +212,23 @@ class LegacyEnvConfigHandler(EnvConfigHandler):
     Allows use of --env in "legacy mode", i.e. pass in specific env files instead of env names.
     """
 
+    @staticmethod
+    def _get_env_name(file_path):
+        return os.path.splitext(os.path.basename(file_path))[0]
+
     def __init__(self, env_files):
         self.env_files = env_files
         self._last_service_set = None
-        self.env_names = []
+        _env_names = [self._get_env_name(fp) for fp in self.env_files]
+        self.env_names = set(_env_names)
+        if len(_env_names) != len(self.env_names):
+            log.warning("Duplicate env names provided: %s", _env_names)
 
     def _load_vars_per_env(self):
         data = {}
 
         for file_path in self.env_files:
-            env_name = file_path
-            data[env_name] = load_cfg_file(file_path)
-            self.env_names.append(env_name)
+            data[self._get_env_name(file_path)] = load_cfg_file(file_path)
 
         return data
 
