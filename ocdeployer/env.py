@@ -38,7 +38,7 @@ class EnvConfigHandler:
         self.base_env_path = get_dir(env_path, env_path, "environment")  # ensures path is valid dir
         self.env_dir_name = env_dir_name
         self.env_names = _dedupe_preserve_order(env_names)
-        if len(env_names) != self.env_names:
+        if len(env_names) != len(self.env_names):
             log.warning("Duplicate env names provided: %s", env_names)
         self._last_service_set = None
         self._last_merged_vars = None
