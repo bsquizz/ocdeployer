@@ -8,14 +8,15 @@ from .utils import oc, validate_list_of_strs
 log = logging.getLogger("ocdeployer.images")
 
 
-def _parse_config(config):
-    images = []
+def _parse_new_style(images):
+    """Handles new-style images config syntax."""
+    parsed_images = []
 
-    for img in config.get("images", []):
+    for img in images:
         if not isinstance(img, dict):
             raise ValueError("entries in 'images' must be of type 'dict'")
         if len(img.keys()) >= 2 and all([k in img for k in ["istag", "from"]]):
-            # This entry is using new-style image definition, e.g.
+            # This entry is using long-style image definition, e.g.
             #   images:
             #   - istag: "image_name"
             #   - from: "quay.io/some/image_name:image_tag"
@@ -24,7 +25,7 @@ def _parse_config(config):
             _from = img["from"]
             envs = img.get("envs", [])
         elif len(img.keys()) == 1 and all([k not in img for k in ["istag", "from", "envs"]]):
-            # This entry is using old-style image definition, e.g.
+            # This entry is using short-style image definition, e.g.
             #   images:
             #   - "image_name:image_tag": "quay.io/some/image_name:image_tag"
             istag, _from = list(img.items())[0]
@@ -36,9 +37,37 @@ def _parse_config(config):
             raise ValueError("'istag' and 'from' must be a of type 'string'")
         validate_list_of_strs("envs", "images", envs)
 
-        images.append({"istag": istag, "from": _from, "envs": envs})
+        parsed_images.append({"istag": istag, "from": _from, "envs": envs})
 
-    return images
+    return parsed_images
+
+
+def _parse_old_style(images):
+    """Handles old-style images config.
+
+    e.g.:
+
+    images:
+        istag1: "docker.io/from-uri"
+        "istag2:latest": "fedora:latest"
+    """
+    parsed_images = []
+
+    for istag, _from in images.items():
+        if not isinstance(istag, str) or not isinstance(_from, str):
+            raise ValueError("keys and values in 'images' must be a of type 'string'")
+        parsed_images.append({"istag": istag, "from": _from, "envs": []})
+
+    return parsed_images
+
+
+def _parse_config(config):
+    if "images" in config:
+        if isinstance(config["images"], dict):
+            return _parse_old_style(config["images"])
+        elif isinstance(config["images"], list):
+            return _parse_new_style(config["images"])
+    return []
 
 
 def _retag_image(istag, image_from):
@@ -56,6 +85,7 @@ def _retag_image(istag, image_from):
 
 def import_images(config, env_names):
     """Import the specified images listed in a _cfg.yml"""
+
     images = _parse_config(config)
     for img_data in images:
         istag = img_data["istag"]
