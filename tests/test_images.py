@@ -32,7 +32,7 @@ def _check_oc_calls(mocker, mock_oc):
     mock_oc.assert_has_calls(calls)
 
 
-def test_old_style_syntax(mocker, mock_oc):
+def test_images_old_style_syntax(mocker, mock_oc):
     config_content = {
         "images": [
             {"image1:tag": "docker.url/image1:sometag"},
@@ -45,7 +45,7 @@ def test_old_style_syntax(mocker, mock_oc):
     _check_oc_calls(mocker, mock_oc)
 
 
-def test_new_style_syntax(mocker, mock_oc):
+def test_images_new_style_syntax(mocker, mock_oc):
     config_content = {
         "images": [
             {"istag": "image1:tag", "from": "docker.url/image1:sometag"},
@@ -58,7 +58,7 @@ def test_new_style_syntax(mocker, mock_oc):
     _check_oc_calls(mocker, mock_oc)
 
 
-def test_mixed_style_syntax(mocker, mock_oc):
+def test_images_mixed_style_syntax(mocker, mock_oc):
     config_content = {
         "images": [
             {"image1:tag": "docker.url/image1:sometag"},
@@ -71,7 +71,7 @@ def test_mixed_style_syntax(mocker, mock_oc):
     _check_oc_calls(mocker, mock_oc)
 
 
-def test_conditional_images(mocker, mock_oc):
+def test_images_conditional_images(mocker, mock_oc):
     config_content = {
         "images": [
             {"istag": "image1:tag", "from": "docker.url/image1:sometag", "envs": ["qa", "prod"]},
@@ -83,7 +83,7 @@ def test_conditional_images(mocker, mock_oc):
     _check_oc_calls(mocker, mock_oc)
 
 
-def test_conditional_ignore_image(mocker, mock_oc):
+def test_images_conditional_ignore_image(mocker, mock_oc):
     config_content = {
         "images": [
             {"istag": "image1:tag", "from": "docker.url/image1:sometag", "envs": ["qa", "prod"]},
