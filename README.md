@@ -365,6 +365,12 @@ images:
 * `istag` -- the desired ImageStreamTag
 * `from` -- the image's external "from" URI
 * `envs` -- lists envs this image should be imported for. The image will only be imported when ocdeployer is run with `--env` matching the envs given. If no envs are given, it is assumed it should be loaded in all envs.
+```
+images:
+- istag: "cp-kafka:sometag"
+  from: "confluentinc/cp-kafka"
+  envs: ["qa", "prod"]
+```
 
 ### Secrets
 
