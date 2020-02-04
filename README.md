@@ -190,11 +190,11 @@ The best way to explain how template configuration works is to describe the proc
     #
     # If it already exists, it will be re-imported (and therefore the image will be updated)
     images:
-      cp-kafka: "confluentinc/cp-kafka"
-      cp-zookeeper: "confluentinc/cp-zookeeper"
-      nginx-stable-openshift: "docker.io/mhuth/nginx-stable-openshift"
-      python-36-centos7: "centos/python-36-centos7"
-      postgresql-95-rhel7: "registry.access.redhat.com/rhscl/postgresql-95-rhel7"
+    - cp-kafka: "confluentinc/cp-kafka"
+    - cp-zookeeper: "confluentinc/cp-zookeeper"
+    - nginx-stable-openshift: "docker.io/mhuth/nginx-stable-openshift"
+    - python-36-centos7: "centos/python-36-centos7"
+    - postgresql-95-rhel7: "registry.access.redhat.com/rhscl/postgresql-95-rhel7"
 
     # (required) deploy_order
     #
@@ -332,6 +332,40 @@ def post_deploy(**kwargs):
         wait_for_ready("dc", "MyDeployment")
 ```
 
+### Images
+
+You can use the `images` section in a `_cfg.yml` to instruct ocdeployer to import images and configure an ImageStream for them.
+
+ocdeployer will run the following for each required image at deploy time.
+```
+oc import-image <istag> --from="<from>" --scheduled=true
+```
+
+If the image already exists, it will be re-imported (and therefore the image will be updated).
+
+If the ImageStreamTag already exists, but the "from" URI has been updated, ocdeployer will run the following to re-configure the tag on the ImageStream:
+```
+oc tag --scheduled=true --source=docker <from> <istag>
+```
+
+The `images` section can be defined in two ways in `_cfg.yml`:
+
+**Short format**
+
+List the desired ImageStreamTag as the key, and the image's "from" URI as the value.
+
+If no tag is specified, it is assumed that "latest" is the desired tag.
+```
+images:
+- "cp-kafka:sometag": "confluentinc/cp-kafka"
+```
+
+**Long format** (`ocdeployer>=v4.3.0`)
+
+* `istag` -- the desired ImageStreamTag
+* `from` -- the image's external "from" URI
+* `envs` -- lists envs this image should be imported for. The image will only be imported when ocdeployer is run with `--env` matching the envs given. If no envs are given, it is assumed it should be loaded in all envs.
+
 ### Secrets
 
 By default, `ocdeployer` will attempt to import secrets from the project `secrets` in OpenShift as well as by looking for secrets in the `./secrets` local directory. You can also use `--secrets-src-project` to copy secrets into your project from a different project in OpenShift, or use `--secrets-local-dir` to load secrets from OpenShift config files in a different directory.
@@ -355,17 +389,24 @@ type: kubernetes.io/ssh-auth
 
 Secrets can be specified in `_cfg.yml` in two ways:
 
-Listing just the name:
+**Short format**
+
+List just the name:
 ```
 secrets:
 - "name of secret"
 ```
 
-(`ocdeployer>=v4.2.0`) Listing the name as well as the service accounts the secret should be linked to using `oc secrets link`:
+**Long format** (`ocdeployer>=v4.3.0`)
+
+List the name as well as:
+* `link` -- lists service accounts the secret should be linked to using `oc secrets link`
+* `envs` -- lists envs this secret should be imported for. The secret will only be imported when ocdeployer is run with `--env` matching the envs given. If no envs are given, it is assumed it should be loaded in all envs.
 ```
 secrets:
 - name: "name of secret"
   link: ["account1", "account2"]
+  envs: ["qa", "prod"]
 ```
 
 Note that any links existing for a secret will not be removed at deploy time -- `ocdeployer` will only add new links.
