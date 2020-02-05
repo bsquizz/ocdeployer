@@ -70,17 +70,45 @@ def _parse_config(config):
     return []
 
 
-def _retag_image(istag, image_from):
-    istag_split = istag.split(":")
-    image_name = istag_split[0]
-    if len(istag_split) < 2:
-        image_tag = "latest"
-    else:
-        image_tag = istag_split[1:]
+class ImageImporter:
+    """
+    A singleton which handles importing images
 
-    oc(
-        "tag", "--scheduled=True", "--source=docker", image_from, f"{image_name}:{image_tag}",
-    )
+    Keeps track of which secrets have been imported so we don't keep re-importing.
+    """
+
+    imported_istags = []
+
+    @classmethod
+    def _retag_image(cls, istag, image_from):
+        istag_split = istag.split(":")
+        image_name = istag_split[0]
+        if len(istag_split) < 2:
+            image_tag = "latest"
+        else:
+            image_tag = istag_split[1:]
+
+        oc(
+            "tag", "--scheduled=True", "--source=docker", image_from, f"{image_name}:{image_tag}",
+        )
+
+    @classmethod
+    def do_import(cls, istag, image_from, **kwargs):
+        if istag in cls.imported_istags:
+            log.warning("istag '%s' already imported, skipping repeat import...", istag)
+        try:
+            oc(
+                "import-image",
+                istag,
+                "--from={}".format(image_from),
+                "--confirm",
+                "--scheduled=True",
+                _reraise=True,
+            )
+        except ErrorReturnCode as err:
+            log.warning("istag '%s' points to another source, re-tagging to update...", istag)
+            if "use the 'tag' command if you want to change the source" in str(err.stderr):
+                cls._retag_image(istag, image_from)
 
 
 def import_images(config, env_names):
@@ -91,17 +119,6 @@ def import_images(config, env_names):
         istag = img_data["istag"]
         image_from = img_data["from"]
         if not img_data["envs"] or any([e in env_names for e in img_data["envs"]]):
-            try:
-                oc(
-                    "import-image",
-                    istag,
-                    "--from={}".format(image_from),
-                    "--confirm",
-                    "--scheduled=True",
-                    _reraise=True,
-                )
-            except ErrorReturnCode as err:
-                if "use the 'tag' command if you want to change the source" in str(err.stderr):
-                    _retag_image(istag, image_from)
+            ImageImporter.do_import(istag, image_from)
         else:
             log.info("Skipping import of image '%s', not enabled for this env", img_data["istag"])

@@ -10,6 +10,7 @@ from .utils import get_cfg_files_in_dir, get_dir, load_cfg_file, object_merge
 
 log = logging.getLogger("ocdeployer.env")
 GLOBAL = "global"
+CFG = "_cfg"
 
 
 def convert_to_regular_dict(data):
