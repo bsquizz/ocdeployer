@@ -43,6 +43,21 @@ SHORTCUTS = {
 }
 
 
+def validate_list_of_strs(item_name, section, l):
+    bad = False
+
+    try:
+        iter(l)
+    except TypeError:
+        bad = True
+    else:
+        if not all([isinstance(i, str) for i in l]):
+            bad = True
+
+    if bad:
+        raise ValueError(f"'{item_name}' in '{section}' is not a list of strings")
+
+
 def object_merge(old, new):
     """
     Recursively merge two data structures

@@ -8,10 +8,9 @@ import os
 import sys
 import yaml
 
-from sh import ErrorReturnCode
-
+from .images import import_images
 from .utils import load_cfg_file, oc, wait_for_ready_threaded
-from .secrets import SecretImporter
+from .secrets import import_secrets, SecretImporter
 from .templates import get_templates_in_dir
 
 
@@ -136,62 +135,6 @@ def deploy_dry_run(
 
 
 DEFAULT_DEPLOY_METHODS = (None, deploy_components, None)
-
-
-def _parse_secrets(config):
-    secrets = []
-
-    for secret in config.get("secrets", []):
-        if isinstance(secret, str):
-            secrets.append({"name": secret, "link": []})
-        elif isinstance(secret, dict):
-            name = secret.get("name")
-            link = secret.get("link", [])
-
-            if not name:
-                raise ValueError("Secret listed in _cfg.yml is missing 'name'")
-            if link:
-                try:
-                    iter(link)
-                except TypeError:
-                    raise ValueError("'link' in 'secrets' is not a list of strings")
-                if not all([isinstance(item, str) for item in link]):
-                    raise ValueError("'link' in 'secrets' is not a list of strings")
-
-            secrets.append({"name": name, "link": link})
-        else:
-            raise ValueError("secret data syntax for _cfg.yml is incorrect")
-
-    return secrets
-
-
-def _handle_secrets_and_imgs(config):
-    # Import the specified secrets
-    secrets = _parse_secrets(config)
-    for secret in secrets:
-        SecretImporter.do_import(**secret)
-
-    # Import the specified images
-    for img_name, img_src in config.get("images", {}).items():
-        try:
-            oc(
-                "import-image",
-                img_name,
-                "--from={}".format(img_src),
-                "--confirm",
-                "--scheduled=True",
-                _reraise=True,
-            )
-        except ErrorReturnCode as err:
-            img_name_split = img_name.split(":")
-            img_name = img_name_split[0]
-            if len(img_name_split) < 2:
-                img_tag = "latest"
-            else:
-                img_tag = img_name_split[1:]
-
-            if "use the 'tag' command if you want to change the source" in str(err.stderr):
-                oc("tag", "--scheduled=True", "--source=docker", img_src, f"{img_name}:{img_tag}")
 
 
 def _load_module(path, service_set):
@@ -462,7 +405,8 @@ class DeployRunner(object):
             log.info("Doing a DRY RUN of deployment")
             pre_deploy_func, deploy_func, post_deploy_func = None, deploy_dry_run, None
         else:
-            _handle_secrets_and_imgs(content)
+            import_secrets(content, self.env_config_handler.env_names)
+            import_images(content, self.env_config_handler.env_names)
 
             pre_deploy_func, deploy_func, post_deploy_func = _get_deploy_methods(
                 content, service_set, dir_path, self.root_custom_dir
@@ -519,7 +463,8 @@ class DeployRunner(object):
         deploy_order = content.get("deploy_order", {})
 
         if not self.dry_run:
-            _handle_secrets_and_imgs(content)
+            import_secrets(content, self.env_config_handler.env_names)
+            import_images(content, self.env_config_handler.env_names)
 
         # Verify all service sets exist
         all_service_sets = []
