@@ -129,20 +129,9 @@ class EnvConfigHandler:
 
         return merged_data
 
-    def _merge_service_set_vars(self, service_set_dir, service_set):
+    def _get_service_set_vars(self, service_set_dir, service_set):
         """
-        Combine the env vars defined in a service set's env dir with the base env vars
-
-        Returns a dict with keys/vals following this structure:
-        {
-            'env': {
-                'service_set': {
-                    'component': variables
-                }
-            }
-        }
-
-        "global" is a reserved service set name and component name
+        Load service set env data for each environment.
         """
         path = os.path.join(service_set_dir, self.env_dir_name)
         path = get_dir(path, path, "environment", optional="True")  # ensures path is valid dir
@@ -160,10 +149,52 @@ class EnvConfigHandler:
                     component = component.split("/")[1]
                 data[env_name][service_set][component] = variables
 
-        data = convert_to_regular_dict(data)
+        return convert_to_regular_dict(data)
+
+    def get_base_env_cfg(self):
+        """
+        Returns data defined under the '_cfg' key in the base env files.
+
+        If _cfg is defined in multiple env files, its data is merged with precedence according to
+        what order the envs were listed in.
+        """
+        return self._merge_environments(self._base_vars).get(CFG, {})
+
+    def get_service_set_env_cfg(self, service_set_dir, service_set):
+        """
+        Returns data defined under the '_cfg' key in a service set's env files.
+
+        If _cfg is defined in multiple env files, its data is merged with precedence according to
+        what order the envs were listed in.
+        """
+        return self._merge_environments(
+            self._get_service_set_vars(service_set_dir, service_set)
+        ).get(CFG, {})
+
+    def _merge_service_set_vars(self, service_set_dir, service_set):
+        """
+        Combine the env vars defined in a service set's env dir with the base env vars
+
+        Returns a dict with keys/vals following this structure:
+        {
+            'env': {
+                'service_set': {
+                    'component': variables
+                }
+            }
+        }
+
+        "global" is a reserved service set name and component name
+        """
+        data = self._get_service_set_vars(service_set_dir, service_set)
         merged_vars = object_merge(copy.deepcopy(self._base_vars), data)
         self._last_service_set = service_set
         self._last_merged_vars = merged_vars
+
+        # Don't include the '_cfg' component in this data set, it's not used for this purpose.
+        if CFG in merged_vars:
+            del merged_vars[CFG]
+
         return merged_vars
 
     def get_vars_for_component(self, service_set_dir, service_set, component):

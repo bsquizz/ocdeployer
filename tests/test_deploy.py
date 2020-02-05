@@ -1,4 +1,5 @@
 import pytest
+import os
 
 from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
@@ -14,7 +15,7 @@ def patched_runner(env_values, mock_load_vars_per_env, legacy=False):
     else:
         handler = EnvConfigHandler(env_names=env_values, env_dir_name="envTEST")
 
-    runner = DeployRunner(None, "test-project", handler, None, ["service"], None, None, [])
+    runner = DeployRunner("templatesTEST", "test-project", handler, None, ["service"], None, None, [])
     runner.base_env_path = "base/envTEST"
 
     if handler:
@@ -22,12 +23,12 @@ def patched_runner(env_values, mock_load_vars_per_env, legacy=False):
     return runner
 
 
-def build_mock_loader(base_env_data, service_set_env_data={}):
+def build_mock_env_loader(base_env_data, service_set_env_data={}):
     def mock_load_vars_per_env(path=None):
         print(f"Mock loader received path: {path}")
         if path is None:
             return base_env_data
-        if "base" in "path" and path.endswith("envTEST"):
+        if "base" in path and path.endswith("envTEST"):
             print("Loading mock base data")
             return base_env_data
         if "templates" in path and "service" in path and path.endswith("envTEST"):
@@ -36,6 +37,41 @@ def build_mock_loader(base_env_data, service_set_env_data={}):
         return {}
 
     return mock_load_vars_per_env
+            
+
+@pytest.fixture
+def patch_load_cfg(monkeypatch):
+    """
+    A fixture that returns a function which will patch 'utils.load_cfg_file' when called in a test
+
+    The caller can specify the dict that should be returned when 'load_cfg_file' is called
+    against these two paths:
+    * "templatesTEST/_cfg.yml"
+    * "templatesTEST/service/_cfg.yml"
+    """
+    def _func(base_cfg_data, service_cfg_data):
+        def _patched_load_cfg_file(path):
+            if path.endswith(os.path.join("templatesTEST", "service", "_cfg.yml")):
+                return service_cfg_data
+            if path.endswith(os.path.join("templatesTEST", "_cfg.yml")):
+                return base_cfg_data
+            else:
+                raise Exception("Unknown path passed to load_cfg_file")
+
+        monkeypatch.setattr('ocdeployer.deploy.load_cfg_file', _patched_load_cfg_file)
+
+    yield _func
+
+
+def test_base_cfg_no_env_given(patch_os_path, patch_load_cfg):
+    runner = patched_runner(None, None)
+    base_cfg_data = {
+        "secrets": ["secret1"],
+        "images": ["image1"]
+    }
+    patch_load_cfg(base_cfg_data, service_cfg_data={})
+    assert runner._get_base_cfg() == base_cfg_data
+    assert not runner._get_service_set_cfg("service")
 
 
 def test__no_env_given():
@@ -72,7 +108,7 @@ def test__get_variables_sanity(legacy, patch_os_path):
         },
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data), legacy)
+    runner = patched_runner(["test_env"], build_mock_env_loader(mock_var_data), legacy)
     assert runner._get_variables("service", "templates/service", "some_component") == expected
 
 
@@ -102,7 +138,7 @@ def test__get_variables_merge_from_global(legacy, patch_os_path):
         },
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data), legacy)
+    runner = patched_runner(["test_env"], build_mock_env_loader(mock_var_data), legacy)
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
@@ -123,7 +159,7 @@ def test__get_variables_service_overwrite_parameter(legacy, patch_os_path):
         }
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data), legacy)
+    runner = patched_runner(["test_env"], build_mock_env_loader(mock_var_data), legacy)
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
@@ -139,7 +175,7 @@ def test__get_variables_service_overwrite_variable(legacy, patch_os_path):
         },
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data), legacy)
+    runner = patched_runner(["test_env"], build_mock_env_loader(mock_var_data), legacy)
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
@@ -162,7 +198,7 @@ def test__get_variables_component_overwrite_parameter(legacy, patch_os_path):
         }
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data), legacy)
+    runner = patched_runner(["test_env"], build_mock_env_loader(mock_var_data), legacy)
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
@@ -185,7 +221,7 @@ def test__get_variables_component_overwrite_variable(legacy, patch_os_path):
         },
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(mock_var_data), legacy)
+    runner = patched_runner(["test_env"], build_mock_env_loader(mock_var_data), legacy)
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
@@ -216,7 +252,7 @@ def test__get_variables_base_and_service_set(patch_os_path):
         },
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(base_var_data, service_set_var_data))
+    runner = patched_runner(["test_env"], build_mock_env_loader(base_var_data, service_set_var_data))
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
@@ -241,7 +277,7 @@ def test__get_variables_service_set_only(patch_os_path):
         },
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(base_var_data, service_set_var_data))
+    runner = patched_runner(["test_env"], build_mock_env_loader(base_var_data, service_set_var_data))
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
@@ -274,7 +310,7 @@ def test__get_variables_service_set_overrides(patch_os_path):
         },
     }
 
-    runner = patched_runner(["test_env"], build_mock_loader(base_var_data, service_set_var_data))
+    runner = patched_runner(["test_env"], build_mock_env_loader(base_var_data, service_set_var_data))
     assert runner._get_variables("service", "templates/service", "component") == expected
 
 
@@ -321,7 +357,7 @@ def test__get_variables_multiple_envs(patch_os_path):
 
     runner = patched_runner(
         ["test_env", "test_env2", "test_env3"],
-        build_mock_loader(base_var_data, service_set_var_data),
+        build_mock_env_loader(base_var_data, service_set_var_data),
     )
     assert runner._get_variables("service", "templates/service", "component") == expected
 
@@ -356,7 +392,7 @@ def test__get_variables_multiple_envs_legacy(patch_os_path):
     }
 
     runner = patched_runner(
-        ["test_env", "test_env2", "test_env3"], build_mock_loader(base_var_data), legacy=True
+        ["test_env", "test_env2", "test_env3"], build_mock_env_loader(base_var_data), legacy=True
     )
     assert runner._get_variables("service", "templates/service", "component") == expected
 
@@ -375,7 +411,7 @@ def test__get_variables_multiple_envs_precedence(patch_os_path):
     }
 
     runner = patched_runner(
-        ["test_env1", "test_env2"], build_mock_loader(base_var_data, service_set_var_data),
+        ["test_env1", "test_env2"], build_mock_env_loader(base_var_data, service_set_var_data),
     )
     assert runner._get_variables("service", "templates/service", "component") == expected
 
@@ -394,6 +430,6 @@ def test__get_variables_multiple_envs_precedence_reversed(patch_os_path):
     }
 
     runner = patched_runner(
-        ["test_env2", "test_env1"], build_mock_loader(base_var_data, service_set_var_data),
+        ["test_env2", "test_env1"], build_mock_env_loader(base_var_data, service_set_var_data),
     )
     assert runner._get_variables("service", "templates/service", "component") == expected

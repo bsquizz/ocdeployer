@@ -2,7 +2,7 @@ import pytest
 
 
 def _is_test_path(path):
-    return "envTEST" in path
+    return "TEST" in path
 
 
 def _patch_exists(path):
