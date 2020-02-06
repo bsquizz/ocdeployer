@@ -58,14 +58,14 @@ def validate_list_of_strs(item_name, section, l):
         raise ValueError(f"'{item_name}' in '{section}' is not a list of strings")
 
 
-def object_merge(old, new):
+def object_merge(old, new, merge_lists=True):
     """
     Recursively merge two data structures
 
     Thanks rsnyman :)
     https://github.com/rochacbruno/dynaconf/commit/458ffa6012f1de62fc4f68077f382ab420b43cfc#diff-c1b434836019ae32dc57d00dd1ae2eb9R15
     """
-    if isinstance(old, list) and isinstance(new, list):
+    if isinstance(old, list) and isinstance(new, list) and merge_lists:
         for item in old[::-1]:
             new.insert(0, item)
     if isinstance(old, dict) and isinstance(new, dict):

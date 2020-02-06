@@ -8,6 +8,7 @@ import os
 import sys
 import yaml
 
+from .config import merge_cfgs
 from .images import import_images
 from .utils import load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import import_secrets, SecretImporter
@@ -274,12 +275,11 @@ class DeployRunner(object):
         self.env_config_handler = env_config_handler
 
     def _get_variables(self, service_set_name, service_set_dir, component):
+        variables = {}
         if self.env_config_handler:
             variables = self.env_config_handler.get_vars_for_component(
                 service_set_dir, service_set_name, component
             )
-        else:
-            variables = {}
 
         # ocdeployer adds the "NAMESPACE" and "SECRETS_PROJECT" parameter by default at deploy time
         if "parameters" not in variables:
@@ -290,9 +290,9 @@ class DeployRunner(object):
 
         return variables
 
-    def _get_variables_per_component(self, service_set_content, service_set_dir, service_set_name):
+    def _get_variables_per_component(self, set_cfg, service_set_dir, service_set_name):
         variables_per_component = {}
-        for _, stage_config in service_set_content.get("deploy_order", {}).items():
+        for _, stage_config in set_cfg.get("deploy_order", {}).items():
             variables_per_component.update(
                 {
                     component_name: self._get_variables(
@@ -303,8 +303,8 @@ class DeployRunner(object):
             )
         return variables_per_component
 
-    def _check_requires(self, service_set_content, service_set_name):
-        requires = service_set_content.get("requires", [])
+    def _check_requires(self, set_cfg, service_set_name):
+        requires = set_cfg.get("requires", [])
         for required_set in requires:
             if required_set not in self._deployed_service_sets:
                 raise ValueError(
@@ -387,34 +387,59 @@ class DeployRunner(object):
             dir_path,
         )
 
+    def _get_base_cfg(self):
+        cfg_path = os.path.join(self.template_dir, "_cfg.yml")
+        if not os.path.isdir(self.template_dir) or not os.path.isfile(cfg_path):
+            raise ValueError(f"Unable to find config at {cfg_path}")
+
+        # Load _cfg.yml from templates dir
+        base_cfg = load_cfg_file(cfg_path)
+        # Check if base env files have '_cfg' defined
+        base_env_cfg = {}
+        if self.env_config_handler:
+            base_env_cfg = self.env_config_handler.get_base_env_cfg()
+        # Merge the values from the two _cfg definitions, with env settings taking precedence
+        return merge_cfgs(base_cfg, base_env_cfg)
+
+    def _get_service_set_cfg(self, service_set, dir_path):
+        cfg_path = os.path.join(dir_path, "_cfg.yml")
+
+        if not os.path.isdir(dir_path) or not os.path.isfile(cfg_path):
+            raise ValueError(f"Unable to find config for service set at {cfg_path}")
+
+        # Load _cfg.yml from service set
+        set_cfg = load_cfg_file(cfg_path)
+        # Check if service set env files have '_cfg' defined
+        set_env_cfg = {}
+        if self.env_config_handler:
+            set_env_cfg = self.env_config_handler.get_service_set_env_cfg(dir_path, service_set)
+        # Merge the values from the two _cfg definitions, with env settings taking precedence
+        return merge_cfgs(set_cfg, set_env_cfg)
+
     def _deploy_service_set(self, service_set):
         log.info("Handling config for service set '%s'", service_set)
         processed_templates = {}
 
         dir_path = os.path.join(self.template_dir, service_set)
-        cfg_path = os.path.join(dir_path, "_cfg.yml")
+        set_cfg = self._get_service_set_cfg(service_set, dir_path)
 
-        if not os.path.isdir(dir_path):
-            raise ValueError("Unable to find directory for service set {}".format(service_set))
-
-        content = load_cfg_file(cfg_path)
         if not self.ignore_requires:
-            self._check_requires(content, service_set)
+            self._check_requires(set_cfg, service_set)
 
         if self.dry_run:
             log.info("Doing a DRY RUN of deployment")
             pre_deploy_func, deploy_func, post_deploy_func = None, deploy_dry_run, None
         else:
-            import_secrets(content, self.env_config_handler.env_names)
-            import_images(content, self.env_config_handler.env_names)
+            import_secrets(set_cfg, self.env_config_handler.env_names)
+            import_images(set_cfg, self.env_config_handler.env_names)
 
             pre_deploy_func, deploy_func, post_deploy_func = _get_deploy_methods(
-                content, service_set, dir_path, self.root_custom_dir
+                set_cfg, service_set, dir_path, self.root_custom_dir
             )
 
-        variables_per_component = self._get_variables_per_component(content, dir_path, service_set)
+        variables_per_component = self._get_variables_per_component(set_cfg, dir_path, service_set)
 
-        deploy_order = content.get("deploy_order", {})
+        deploy_order = set_cfg.get("deploy_order", {})
 
         if pre_deploy_func:
             log.info("Running pre_deploy() for service set '%s'", service_set)
@@ -438,7 +463,7 @@ class DeployRunner(object):
                 project_name=self.project_name,
                 template_dir=dir_path,
                 variables_per_component=variables_per_component,
-                timeout=int(content.get("post_deploy_timeout", 0)),
+                timeout=int(set_cfg.get("post_deploy_timeout", 0)),
             )
 
         self._deployed_service_sets.append(service_set)
@@ -459,12 +484,12 @@ class DeployRunner(object):
         """
         self._deployed_service_sets = []
 
-        content = load_cfg_file(os.path.join(self.template_dir, "_cfg.yml"))
-        deploy_order = content.get("deploy_order", {})
+        base_cfg = self._get_base_cfg()
+        deploy_order = base_cfg.get("deploy_order", {})
 
         if not self.dry_run:
-            import_secrets(content, self.env_config_handler.env_names)
-            import_images(content, self.env_config_handler.env_names)
+            import_secrets(base_cfg, self.env_config_handler.env_names)
+            import_images(base_cfg, self.env_config_handler.env_names)
 
         # Verify all service sets exist
         all_service_sets = []

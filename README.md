@@ -338,7 +338,7 @@ You can use the `images` section in a `_cfg.yml` to instruct ocdeployer to impor
 
 ocdeployer will run the following for each required image at deploy time.
 ```
-oc import-image <istag> --from="<from>" --scheduled=true
+oc import-image <istag> --from="<from>" --scheduled=true --confirm
 ```
 
 If the image already exists, it will be re-imported (and therefore the image will be updated).
@@ -347,6 +347,8 @@ If the ImageStreamTag already exists, but the "from" URI has been updated, ocdep
 ```
 oc tag --scheduled=true --source=docker <from> <istag>
 ```
+
+If the same ImageStreamTag is defined more than once (whether in the same `_cfg.yml` or in various `_cfg.yml` files), it is not imported repeatedly. For this reason, ImageStreamTag's need to be uniquely named across service sets if they are intended to be deployed into the same namespace. 
 
 The `images` section can be defined in two ways in `_cfg.yml`:
 
@@ -496,11 +498,50 @@ Select your environment at runtime with the `-e` or `--env` command-line option,
 ```
 (venv) $ ocdeployer deploy -s myset -e myenv myproject
 ```
-
 ---
 **NOTE**
 
 In `ocdeployer<v4.0`, there was no support for env files within the service set, so only root environment files were used and the `-e/--env-file` argument was used to point to specific YAML file paths. This is still supported for backward compatibility.
+
+---
+
+### Overriding deploy config via environment file
+
+The component key name `_cfg` is reserved in environment files. Data listed under this key can be structured in the same way as a `_cfg.yml` file, allowing you to add to or override values of the deloy config for different environments.
+
+* A `_cfg` section defined in a base env file will be merged with values set in the base `_cfg`.
+* A `_cfg` section defined in a service set's env file will be merged with values set in the `_cfg` for that service set.
+
+As an example, let's say that you want to import an image only when deploying to the "qa" environment.
+
+Your base config may look like this:
+```
+deploy_order:
+  stage0:
+    components: ["set1", "set2", "set3"]
+```
+
+Your service set config for `set1` may look like this:
+```
+images:
+- image1: repo/image1:latest
+
+deploy_order:
+  stage0:
+    components: ["component1", "component2"]
+```
+
+You could then define `templates/set1/env/qa.yml` with this setting:
+```
+_cfg:
+  images:
+  - image1: repo/image1:other-tag
+  - image2: repo/image2:latest
+```
+
+This will cause the following to occur *only* when `--env qa` is selected at deploy time:
+* the source image of the `image1` ImageStreamTag to be overridden to map to a new external tag (`other-tag` instead of `latest`)
+* image2 to be imported
 
 ---
 

@@ -68,8 +68,8 @@ The project structure will be as follows:
     images:
       # Images our configs rely on. We will run 'oc import-image' on these.
       # The key is the ImageStream name. The value is the docker image to pull.
-      nginx: "nginx"
-      postgresql: "postgresql"
+    - nginx: "nginx"
+    - postgresql: "postgresql"
 
     secrets:
     # Names of secrets these templates rely on that we need to import
@@ -93,8 +93,8 @@ The project structure will be as follows:
     images:
       # Images our configs rely on. We will run 'oc import-image' on these.
       # The key is the ImageStream name. The value is the docker image to pull.
-      origin-custom-docker-builder: "openshift/origin-custom-docker-builder"
-      mysql-57-centos7: "centos/mysql-57-centos7"
+    - origin-custom-docker-builder: "openshift/origin-custom-docker-builder"
+    - mysql-57-centos7: "centos/mysql-57-centos7"
 
     # Indicates we are making use of a custom pre-deploy/deploy/post-deploy script
     custom_deploy_logic: True
