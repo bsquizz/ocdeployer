@@ -63,15 +63,87 @@ def patch_load_cfg(monkeypatch):
     yield _func
 
 
-def test_base_cfg_no_env_given(patch_os_path, patch_load_cfg):
+def test_cfg_no_env_given(patch_os_path, patch_load_cfg):
     runner = patched_runner(None, None)
     base_cfg_data = {
         "secrets": ["secret1"],
         "images": ["image1"]
     }
-    patch_load_cfg(base_cfg_data, service_cfg_data={})
+    set_cfg_data = {
+        "secrets": ["secret2"],
+        "images": ["image2"]
+    }
+    patch_load_cfg(base_cfg_data, set_cfg_data)
     assert runner._get_base_cfg() == base_cfg_data
-    assert not runner._get_service_set_cfg("service")
+    assert runner._get_service_set_cfg("service") == set_cfg_data
+
+
+def test_cfg_no_env_cfg(patch_os_path, patch_load_cfg):
+    base_cfg_data = {
+        "secrets": ["secret1"],
+        "images": ["image1"]
+    }
+    set_cfg_data = {
+        "secrets": ["secret2"],
+        "images": ["image2"]
+    }
+    mock_var_data = {
+        "test_env": {
+            "service": {
+                "some_set": "stuff"
+            }
+        }
+    }
+    mock_set_var_data = {
+        "test_env": {
+            "component": {
+                "some_var": "stuff"
+            }
+        }
+    }
+
+    patch_load_cfg(base_cfg_data, set_cfg_data)
+    runner = patched_runner(["test_env"], build_mock_env_loader(mock_var_data, mock_set_var_data))
+    assert runner._get_base_cfg() == base_cfg_data
+    assert runner._get_service_set_cfg("service") == set_cfg_data
+
+
+def test_cfg_base_env_cfg(patch_os_path, patch_load_cfg):
+    base_cfg_data = {
+        "secrets": ["secret1"],
+        "images": ["image1"]
+    }
+    set_cfg_data = {
+        "secrets": ["secret2"],
+        "images": ["image2"]
+    }
+    mock_var_data = {
+        "test_env": {
+            "_cfg": {
+                "secrets": ["overridden-secret1"],
+                "extrastuff": "things"
+            },
+            "service": {
+                "some_set": "stuff"
+            }
+        }
+    }
+    mock_set_var_data = {
+        "test_env": {
+            "component": {
+                "some_var": "stuff"
+            }
+        }
+    }
+
+    patch_load_cfg(base_cfg_data, set_cfg_data)
+    runner = patched_runner(["test_env"], build_mock_env_loader(mock_var_data, mock_set_var_data))
+    assert runner._get_base_cfg() == {
+        "secrets": ["overriden-secret1"],
+        "extrastuff": "things",
+        "images": ["image1"]
+    }
+    assert runner._get_service_set_cfg("service") == set_cfg_data
 
 
 def test__no_env_given():

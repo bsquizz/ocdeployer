@@ -8,6 +8,7 @@ import os
 import sys
 import yaml
 
+from .config import merge_cfgs
 from .images import import_images
 from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded
 from .secrets import import_secrets, SecretImporter
@@ -398,7 +399,7 @@ class DeployRunner(object):
         if self.env_config_handler:
             base_env_cfg = self.env_config_handler.get_base_env_cfg()
         # Merge the values from the two _cfg definitions, with env settings taking precedence
-        return object_merge(base_cfg, base_env_cfg)
+        return merge_cfgs(base_cfg, base_env_cfg)
 
     def _get_service_set_cfg(self, service_set):
         dir_path = os.path.join(self.template_dir, service_set)
@@ -414,7 +415,7 @@ class DeployRunner(object):
         if self.env_config_handler:
             set_env_cfg = self.env_config_handler.get_service_set_env_cfg(dir_path, service_set)
         # Merge the values from the two _cfg definitions, with env settings taking precedence
-        return object_merge(set_cfg, set_env_cfg)
+        return merge_cfgs(set_cfg, set_env_cfg)
 
     def _deploy_service_set(self, service_set):
         log.info("Handling config for service set '%s'", service_set)

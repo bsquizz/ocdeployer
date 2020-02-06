@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from cached_property import cached_property
 
+from .config import merge_cfgs
 from .utils import get_cfg_files_in_dir, get_dir, load_cfg_file, object_merge
 
 
@@ -84,19 +85,21 @@ class EnvConfigHandler:
 
         for env_name, env_vars in vars_per_env.items():
             for key, config in env_vars.items():
-                if "/" in key:
+                if key == CFG:
+                    # This is a env-level _cfg definition
+                    data[env_name][CFG] = config
+                elif key == GLOBAL:
+                    # Global vars for all service sets
+                    data[env_name][GLOBAL] = config
+                elif "/" in key:
                     service_set = key.split("/")[0]
                     component = key.split("/")[1]
                     data[env_name][service_set][component] = config
                 else:
-                    # If a specific component is not given, this is a global var
+                    # A specific component was not given, this is a service set var
+                    # Global only for service set
                     service_set = key
-                    if service_set == GLOBAL:
-                        # Global for all service sets
-                        data[env_name][GLOBAL] = config
-                    else:
-                        # Global only for service set
-                        data[env_name][service_set][GLOBAL] = config
+                    data[env_name][service_set][GLOBAL] = config
 
         return convert_to_regular_dict(data)
 
@@ -125,7 +128,7 @@ class EnvConfigHandler:
         """
         merged_data = {}
         for env in self.env_names:
-            object_merge(data[env], merged_data)
+            object_merge(data.get(env, {}), merged_data)
 
         return merged_data
 
@@ -151,6 +154,13 @@ class EnvConfigHandler:
 
         return convert_to_regular_dict(data)
 
+    def _merge_env_cfgs(self, vars_per_env):
+        merged_cfg = {}
+        for env in self.env_names:
+            cfg = vars_per_env.get(env, {}).get(CFG, {})
+            merge_cfgs(cfg, merged_cfg)
+        return merged_cfg
+
     def get_base_env_cfg(self):
         """
         Returns data defined under the '_cfg' key in the base env files.
@@ -158,7 +168,7 @@ class EnvConfigHandler:
         If _cfg is defined in multiple env files, its data is merged with precedence according to
         what order the envs were listed in.
         """
-        return self._merge_environments(self._base_vars).get(CFG, {})
+        return self._merge_env_cfgs(self._base_vars)
 
     def get_service_set_env_cfg(self, service_set_dir, service_set):
         """
@@ -167,9 +177,9 @@ class EnvConfigHandler:
         If _cfg is defined in multiple env files, its data is merged with precedence according to
         what order the envs were listed in.
         """
-        return self._merge_environments(
+        return self._merge_env_cfgs(
             self._get_service_set_vars(service_set_dir, service_set)
-        ).get(CFG, {})
+        )
 
     def _merge_service_set_vars(self, service_set_dir, service_set):
         """

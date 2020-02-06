@@ -61,7 +61,7 @@ def _parse_old_style(images):
     return parsed_images
 
 
-def _parse_config(config):
+def parse_config(config):
     if "images" in config:
         if isinstance(config["images"], dict):
             return _parse_old_style(config["images"])
@@ -114,7 +114,7 @@ class ImageImporter:
 def import_images(config, env_names):
     """Import the specified images listed in a _cfg.yml"""
 
-    images = _parse_config(config)
+    images = parse_config(config)
     for img_data in images:
         istag = img_data["istag"]
         image_from = img_data["from"]

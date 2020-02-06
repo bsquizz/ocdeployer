@@ -59,7 +59,7 @@ def import_secret_from_project(project, secret_name):
     )
 
 
-def _parse_config(config):
+def parse_config(config):
     secrets = []
 
     for secret in config.get("secrets", []):
@@ -136,7 +136,7 @@ class SecretImporter(object):
 
 def import_secrets(config, env_names):
     """Import the specified secrets listed in a _cfg.yml"""
-    secrets = _parse_config(config)
+    secrets = parse_config(config)
     for secret in secrets:
         if not secret["envs"] or any([e in env_names for e in secret["envs"]]):
             SecretImporter.do_import(**secret)
