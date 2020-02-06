@@ -8,6 +8,13 @@ from .utils import oc, validate_list_of_strs
 log = logging.getLogger("ocdeployer.images")
 
 
+def _parse_istag(istag):
+    """Append "latest" tag onto istag if it has no tag."""
+    if ":" not in istag:
+        return f"{istag}:latest"
+    return istag
+
+
 def _parse_new_style(images):
     """Handles new-style images config syntax."""
     parsed_images = []
@@ -21,7 +28,7 @@ def _parse_new_style(images):
             #   - istag: "image_name"
             #   - from: "quay.io/some/image_name:image_tag"
             #   - envs: ["stage", "prod"]
-            istag = img["istag"]
+            istag = _parse_istag(img["istag"])
             _from = img["from"]
             envs = img.get("envs", [])
         elif len(img.keys()) == 1 and all([k not in img for k in ["istag", "from", "envs"]]):
@@ -29,6 +36,7 @@ def _parse_new_style(images):
             #   images:
             #   - "image_name:image_tag": "quay.io/some/image_name:image_tag"
             istag, _from = list(img.items())[0]
+            istag = _parse_istag(istag)
             envs = []
         else:
             raise ValueError("Unknown syntax for 'images' section of config")
@@ -56,7 +64,7 @@ def _parse_old_style(images):
     for istag, _from in images.items():
         if not isinstance(istag, str) or not isinstance(_from, str):
             raise ValueError("keys and values in 'images' must be a of type 'string'")
-        parsed_images.append({"istag": istag, "from": _from, "envs": []})
+        parsed_images.append({"istag": _parse_istag(istag), "from": _from, "envs": []})
 
     return parsed_images
 
@@ -81,15 +89,8 @@ class ImageImporter:
 
     @classmethod
     def _retag_image(cls, istag, image_from):
-        istag_split = istag.split(":")
-        image_name = istag_split[0]
-        if len(istag_split) < 2:
-            image_tag = "latest"
-        else:
-            image_tag = istag_split[1:]
-
         oc(
-            "tag", "--scheduled=True", "--source=docker", image_from, f"{image_name}:{image_tag}",
+            "tag", "--scheduled=True", "--source=docker", image_from, istag,
         )
 
     @classmethod

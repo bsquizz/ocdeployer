@@ -10,7 +10,7 @@ import yaml
 
 from .config import merge_cfgs
 from .images import import_images
-from .utils import load_cfg_file, object_merge, oc, wait_for_ready_threaded
+from .utils import load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import import_secrets, SecretImporter
 from .templates import get_templates_in_dir
 
@@ -401,8 +401,7 @@ class DeployRunner(object):
         # Merge the values from the two _cfg definitions, with env settings taking precedence
         return merge_cfgs(base_cfg, base_env_cfg)
 
-    def _get_service_set_cfg(self, service_set):
-        dir_path = os.path.join(self.template_dir, service_set)
+    def _get_service_set_cfg(self, service_set, dir_path):
         cfg_path = os.path.join(dir_path, "_cfg.yml")
 
         if not os.path.isdir(dir_path) or not os.path.isfile(cfg_path):
@@ -421,7 +420,8 @@ class DeployRunner(object):
         log.info("Handling config for service set '%s'", service_set)
         processed_templates = {}
 
-        set_cfg = self._get_service_set_cfg(service_set)
+        dir_path = os.path.join(self.template_dir, service_set)
+        set_cfg = self._get_service_set_cfg(service_set, dir_path)
 
         if not self.ignore_requires:
             self._check_requires(set_cfg, service_set)

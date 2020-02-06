@@ -154,10 +154,19 @@ class EnvConfigHandler:
 
         return convert_to_regular_dict(data)
 
-    def _merge_env_cfgs(self, vars_per_env):
+    def _merge_env_cfgs(self, vars_per_env, service_set=None):
         merged_cfg = {}
         for env in self.env_names:
-            cfg = vars_per_env.get(env, {}).get(CFG, {})
+            cfg = {}
+            if service_set:
+                # Look for a _cfg key under [env][service_set]['_cfg']
+                for key, data in vars_per_env.get(env, {}).items():
+                    if service_set and key == service_set:
+                        cfg = data.get(CFG, {})
+                        break
+            else:
+                # Look for a _cfg key under [env]['_cfg']
+                cfg = vars_per_env.get(env, {}).get(CFG, {})
             merge_cfgs(cfg, merged_cfg)
         return merged_cfg
 
@@ -178,7 +187,7 @@ class EnvConfigHandler:
         what order the envs were listed in.
         """
         return self._merge_env_cfgs(
-            self._get_service_set_vars(service_set_dir, service_set)
+            self._get_service_set_vars(service_set_dir, service_set), service_set=service_set
         )
 
     def _merge_service_set_vars(self, service_set_dir, service_set):

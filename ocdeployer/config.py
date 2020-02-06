@@ -18,7 +18,7 @@ def merge_list_of_dicts(old, new, key):
     merge_list_of_dicts(list1, list2) returns:
     [{"name": "one", "data": "newstuff"}, {"name": "two", "data": "stuff2"}]
     """
-    for old_item in old:
+    for old_item in reversed(old):
         matching_val = old_item[key]
         for new_item in new:
             if new_item[key] == matching_val:
@@ -31,14 +31,14 @@ def merge_list_of_dicts(old, new, key):
 
 def merge_cfgs(old, new):
     """
-    Merges two ocdeployer _cfg definitions together.
+    Merges two _cfg definitions together.
 
     This is similar to an object_merge but with special processing of the 'images' and 'secrets'
     since these are lists of dictionaries
 
     object_merge simply merges items from an old & new list together. Instead, if 2 dictionaries
-    are defining data for the name 'images' or 'secrets', we want to merge the data of those
-    dictionaries together.
+    items in the lists are defining data for the same image or secret, we want to merge the data of
+    those dictionaries together.
     """
     old_images = parse_images_config(old)
     new_images = parse_images_config(new)
@@ -48,7 +48,7 @@ def merge_cfgs(old, new):
     # First do a standard object_merge, we'll then replace 'images' and 'secrets'
     object_merge(old, new)
     # Now merge the list of dictionaries together using their identifying key
-    new['images'] = merge_list_of_dicts(old_images, new_images, key="istag")
-    new['secrets'] = merge_list_of_dicts(old_secrets, new_secrets, key="name")
+    new["images"] = merge_list_of_dicts(old_images, new_images, key="istag")
+    new["secrets"] = merge_list_of_dicts(old_secrets, new_secrets, key="name")
 
     return new
