@@ -78,12 +78,26 @@ def test_cfg_no_env_given(patch_os_path, patch_load_cfg):
     # no env file defined that has '_cfg' key, there should be no changes to the cfg
     assert runner._get_base_cfg() == {
         "secrets": [{"name": "secret1", "envs": [], "link": []}],
-        "images": [{"istag": "image1:latest", "from": "somerepo/image1:latest", "envs": []}],
+        "images": [
+            {
+                "istag": "image1:latest",
+                "from": "somerepo/image1:latest",
+                "envs": [],
+                "scheduled": True,
+            }
+        ],
     }
 
     assert runner._get_service_set_cfg("service", "templatesTEST/service") == {
         "secrets": [{"name": "secret2", "envs": [], "link": []}],
-        "images": [{"istag": "image2:latest", "from": "somerepo/image2:latest", "envs": []}],
+        "images": [
+            {
+                "istag": "image2:latest",
+                "from": "somerepo/image2:latest",
+                "envs": [],
+                "scheduled": True,
+            }
+        ],
     }
 
 
@@ -102,12 +116,26 @@ def test_cfg_no_env_cfg(patch_os_path, patch_load_cfg):
     # env file had no _cfg, so we should not see any changes to the cfg
     assert runner._get_base_cfg() == {
         "secrets": [{"name": "secret1", "envs": [], "link": []}],
-        "images": [{"istag": "image1:latest", "from": "somerepo/image1:latest", "envs": []}],
+        "images": [
+            {
+                "istag": "image1:latest",
+                "from": "somerepo/image1:latest",
+                "envs": [],
+                "scheduled": True,
+            }
+        ],
     }
 
     assert runner._get_service_set_cfg("service", "templatesTEST/service") == {
         "secrets": [{"name": "secret2", "envs": [], "link": []}],
-        "images": [{"istag": "image2:latest", "from": "somerepo/image2:latest", "envs": []}],
+        "images": [
+            {
+                "istag": "image2:latest",
+                "from": "somerepo/image2:latest",
+                "envs": [],
+                "scheduled": True,
+            }
+        ],
     }
 
 
@@ -139,13 +167,22 @@ def test_cfg_base_env_cfg(patch_os_path, patch_load_cfg):
             {"name": "secret1", "envs": [], "link": []},
         ],
         "extrastuff": "things",
-        "images": [{"istag": "image1:latest", "from": "overridden-image", "envs": []}],
+        "images": [
+            {"istag": "image1:latest", "from": "overridden-image", "envs": [], "scheduled": True}
+        ],
     }
 
     # service set env file had no _cfg, so it should be unchanged
     assert runner._get_service_set_cfg("service", "templatesTEST/service") == {
         "secrets": [{"name": "secret2", "envs": [], "link": []}],
-        "images": [{"istag": "image2:latest", "from": "somerepo/image2:latest", "envs": []}],
+        "images": [
+            {
+                "istag": "image2:latest",
+                "from": "somerepo/image2:latest",
+                "envs": [],
+                "scheduled": True,
+            }
+        ],
     }
 
 
@@ -188,7 +225,9 @@ def test_cfg_set_env_cfg(patch_os_path, patch_load_cfg):
             {"name": "secret1", "envs": [], "link": []},
         ],
         "extrastuff": "things",
-        "images": [{"istag": "image1:latest", "from": "overridden-image", "envs": []}],
+        "images": [
+            {"istag": "image1:latest", "from": "overridden-image", "envs": [], "scheduled": True}
+        ],
     }
 
     # set env file had a _cfg, we should see set env file config merged into set config
@@ -198,8 +237,13 @@ def test_cfg_set_env_cfg(patch_os_path, patch_load_cfg):
             {"name": "secret2", "envs": [], "link": []},
         ],
         "images": [
-            {"istag": "image2:latest", "from": "overridden-image-2", "envs": []},
-            {"istag": "image3:latest", "from": "somerepo/image3:latest", "envs": []},
+            {"istag": "image2:latest", "from": "overridden-image-2", "envs": [], "scheduled": True},
+            {
+                "istag": "image3:latest",
+                "from": "somerepo/image3:latest",
+                "envs": [],
+                "scheduled": True,
+            },
         ],
     }
 

@@ -1,8 +1,6 @@
 import logging
 
-from sh import ErrorReturnCode
-
-from .utils import oc, validate_list_of_strs
+from .utils import oc, get_json, validate_list_of_strs
 
 
 log = logging.getLogger("ocdeployer.images")
@@ -31,12 +29,16 @@ def _parse_new_style(images):
             istag = _parse_istag(img["istag"])
             _from = img["from"]
             envs = img.get("envs", [])
-        elif len(img.keys()) == 1 and all([k not in img for k in ["istag", "from", "envs"]]):
+            scheduled = img.get("scheduled", True)
+        elif len(img.keys()) == 1 and all(
+            [k not in img for k in ["istag", "from", "envs", "scheduled"]]
+        ):
             # This entry is using short-style image definition, e.g.
             #   images:
             #   - "image_name:image_tag": "quay.io/some/image_name:image_tag"
             istag, _from = list(img.items())[0]
             istag = _parse_istag(istag)
+            scheduled = True
             envs = []
         else:
             raise ValueError("Unknown syntax for 'images' section of config")
@@ -45,7 +47,7 @@ def _parse_new_style(images):
             raise ValueError("'istag' and 'from' must be a of type 'string'")
         validate_list_of_strs("envs", "images", envs)
 
-        parsed_images.append({"istag": istag, "from": _from, "envs": envs})
+        parsed_images.append({"istag": istag, "from": _from, "envs": envs, "scheduled": scheduled})
 
     return parsed_images
 
@@ -64,7 +66,9 @@ def _parse_old_style(images):
     for istag, _from in images.items():
         if not isinstance(istag, str) or not isinstance(_from, str):
             raise ValueError("keys and values in 'images' must be a of type 'string'")
-        parsed_images.append({"istag": _parse_istag(istag), "from": _from, "envs": []})
+        parsed_images.append(
+            {"istag": _parse_istag(istag), "from": _from, "envs": [], "scheduled": True}
+        )
 
     return parsed_images
 
@@ -88,28 +92,32 @@ class ImageImporter:
     imported_istags = []
 
     @classmethod
-    def _retag_image(cls, istag, image_from):
+    def _retag_image(cls, istag, image_from, scheduled):
         oc(
-            "tag", "--scheduled=True", "--source=docker", image_from, istag,
+            "tag", f"--scheduled={scheduled}", "--source=docker", image_from, istag,
         )
 
     @classmethod
-    def do_import(cls, istag, image_from, **kwargs):
+    def _import_image(cls, istag, image_from, scheduled):
+        oc(
+            "import-image",
+            istag,
+            "--from={}".format(image_from),
+            "--confirm",
+            f"--scheduled={scheduled}",
+            _reraise=True,
+        )
+
+    @classmethod
+    def do_import(cls, istag, image_from, scheduled, **kwargs):
         if istag in cls.imported_istags:
             log.warning("istag '%s' already imported, skipping repeat import...", istag)
-        try:
-            oc(
-                "import-image",
-                istag,
-                "--from={}".format(image_from),
-                "--confirm",
-                "--scheduled=True",
-                _reraise=True,
-            )
-        except ErrorReturnCode as err:
-            log.warning("istag '%s' points to another source, re-tagging to update...", istag)
-            if "use the 'tag' command if you want to change the source" in str(err.stderr):
-                cls._retag_image(istag, image_from)
+
+        scheduled = "True" if scheduled else "False"
+        if get_json("istag", istag):
+            cls._retag_image(istag, image_from, scheduled)
+        else:
+            cls._import_image(istag, image_from, scheduled)
 
 
 def import_images(config, env_names):
@@ -119,7 +127,8 @@ def import_images(config, env_names):
     for img_data in images:
         istag = img_data["istag"]
         image_from = img_data["from"]
+        scheduled = img_data.get("scheduled", True)
         if not img_data["envs"] or any([e in env_names for e in img_data["envs"]]):
-            ImageImporter.do_import(istag, image_from)
+            ImageImporter.do_import(istag, image_from, scheduled)
         else:
             log.info("Skipping import of image '%s', not enabled for this env", img_data["istag"])

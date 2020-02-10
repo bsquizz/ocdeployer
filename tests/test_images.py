@@ -6,6 +6,7 @@ from ocdeployer.images import import_images
 @pytest.fixture
 def mock_oc(mocker):
     _mock_oc = mocker.patch("ocdeployer.images.oc")
+    mocker.patch("ocdeployer.images.get_json", return_value={})
     yield _mock_oc
 
 
