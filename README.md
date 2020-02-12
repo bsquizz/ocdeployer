@@ -242,12 +242,17 @@ By default, no pre_deploy/post_deploy is run, and the deploy logic is taken care
 
 But let's say you want to perform some tasks prior to deploying your components, or after deploying your components. Custom scripts can be useful for this.
 
-You can set `custom_deploy_logic` in your service set's `_cfg.yml` to `True`. You should then create a script called `deploy.py` in the `custom` dir of your service set.
+You can set `custom_deploy_logic` in your service set's `_cfg.yml` to `true`. You then have two options for defining a custom deploy script:
+
+* You can define a single `deploy.py` in the root `custom` directory of your project. This script will apply to all service sets as long as they have `custom_deploy_logic` set to `true`.
+* You can create a script called `deploy.py` in the `custom` dir of your service set. This script will apply only to that service set.
+
+If a project contains a `deploy.py` in the root custom directory as well as in the service set's custom directory -- the service set deploy script takes precedence.
 
 ---
 **NOTE**
 
-In previous versions of `ocdeployer<4.0`, the `custom` dir was housed in the root folder of the project, and the deploy file inserted in there needed to match the name of your service set, e.g. `deploy_myservice.py`. For backward compatibility, this method is still supported. Also it's possible to define custom deploy method and hooks globally for all sets with `deploy.py` module there.
+In previous versions of `ocdeployer<4.0`, the `custom` dir was housed in the root folder of the project, and the deploy file inserted in there needed to match the name of your service set, e.g. `deploy_myservice.py`. For backward compatibility, this method of defining the service set deploy scripts is still supported.
 
 ---
 
