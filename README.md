@@ -247,7 +247,7 @@ You can set `custom_deploy_logic` in your service set's `_cfg.yml` to `True`. Yo
 ---
 **NOTE**
 
-In previous versions of `ocdeployer<4.0`, the `custom` dir was housed in the root folder of the project, and the deploy file inserted in there needed to match the name of your service set, e.g. `deploy_myservice.py`. For backward compatibility, this method is still supported.
+In previous versions of `ocdeployer<4.0`, the `custom` dir was housed in the root folder of the project, and the deploy file inserted in there needed to match the name of your service set, e.g. `deploy_myservice.py`. For backward compatibility, this method is still supported. Also it's possible to define custom deploy method and hooks globally for all sets with `deploy.py` module there.
 
 ---
 
