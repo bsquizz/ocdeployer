@@ -189,7 +189,9 @@ class Template(object):
 
         params_and_vals = {}
         for param_name, param_value in parameters.items():
-            params_and_vals[param_name] = "{}={}".format(param_name, self._format_oc_parameter(param_value))
+            params_and_vals[param_name] = "{}={}".format(
+                param_name, self._format_oc_parameter(param_value)
+            )
 
         extra_args = []
         # Only insert the parameter if it was defined in the template
