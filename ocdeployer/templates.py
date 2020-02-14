@@ -160,6 +160,17 @@ class Template(object):
         with open(self.path, "r") as f:
             return self._jinja_safe(f.read())
 
+    @staticmethod
+    def _format_oc_parameter(param_value):
+        """
+        Hack around yaml dump behaviour for different datatypes
+        Examples:
+            yaml.dump(True) -> 'true\n...\n'
+            yaml.dump('True') -> "'True'\n"
+            yaml.dump('123') -> "'123'\n"
+        """
+        return yaml.dump(param_value).replace("\n...\n", "").strip()
+
     def _process_via_oc(self, content, parameters=None, label=None):
         """
         Run 'oc process' on the template and update content with the processed output
@@ -176,10 +187,9 @@ class Template(object):
         if not parameters:
             parameters = {}
 
-        # Create set of param strings to pass into 'oc process'
         params_and_vals = {}
         for param_name, param_value in parameters.items():
-            params_and_vals[param_name] = "{}={}".format(param_name, param_value)
+            params_and_vals[param_name] = "{}={}".format(param_name, self._format_oc_parameter(param_value))
 
         extra_args = []
         # Only insert the parameter if it was defined in the template
