@@ -10,7 +10,7 @@ def patched_runner(env_values, mock_load_vars_per_env, legacy=False):
     if not env_values:
         handler = None
     elif legacy:
-        handler = LegacyEnvConfigHandler(env_files=env_values)
+        handler = LegacyEnvConfigHandler(env_files=env_values, env_dir_name="envTEST")
         handler.env_names = env_values
     else:
         handler = EnvConfigHandler(env_names=env_values, env_dir_name="envTEST")
