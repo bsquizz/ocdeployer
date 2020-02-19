@@ -7,9 +7,9 @@ from ocdeployer.templates import Template
     'value,expected',
     (
         (True, 'true'),
-        ('True', "'True'"),
-        ('true', "'true'"),
-        ('123', "'123'"),
+        ('True', 'True'),
+        ('true', 'true'),
+        ('123', '123'),
         (123, '123'),
         ('123:123:123', '123:123:123'),
         ('some text', 'some text')
