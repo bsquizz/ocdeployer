@@ -282,7 +282,7 @@ class LegacyEnvConfigHandler(EnvConfigHandler):
         _env_names = [self._get_env_name(fp) for fp in self.env_files]
         super().__init__(_env_names, env_dir_name)
 
-    def _load_vars_per_env(self):
+    def _load_vars_per_env(self, path=None):
         data = {}
 
         for file_path in self.env_files:
