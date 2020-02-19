@@ -165,7 +165,7 @@ class Template(object):
         """
         Ensures that non-string parameter values are inserted into template properly
         """
-        if isinstance(param_value, bool) or isinstance(param_value, int): 
+        if isinstance(param_value, bool) or isinstance(param_value, int):
             return json.dumps(param_value)
         return param_value
 
