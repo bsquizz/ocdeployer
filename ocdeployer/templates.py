@@ -163,13 +163,11 @@ class Template(object):
     @staticmethod
     def _format_oc_parameter(param_value):
         """
-        Hack around yaml dump behaviour for different datatypes
-        Examples:
-            yaml.dump(True) -> 'true\n...\n'
-            yaml.dump('True') -> "'True'\n"
-            yaml.dump('123') -> "'123'\n"
+        Ensures that non-string parameter values are inserted into template properly
         """
-        return yaml.dump(param_value).replace("\n...\n", "").strip()
+        if isinstance(param_value, bool) or isinstance(param_value, int): 
+            return json.dumps(param_value)
+        return param_value
 
     def _process_via_oc(self, content, parameters=None, label=None):
         """
