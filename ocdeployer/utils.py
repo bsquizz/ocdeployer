@@ -136,7 +136,8 @@ def get_dir(value, default_value, dir_type, optional=False):
         log.error("%s directory invalid: %s", dir_type, path)
         sys.exit(1)
     path = os.path.abspath(path)
-    log.info("Found %s path: %s", dir_type, path)
+    if os.path.exists(path):
+        log.info("Found %s path: %s", dir_type, path)
     return path
 
 

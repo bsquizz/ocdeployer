@@ -272,7 +272,7 @@ class DeployRunner(object):
         self.service_sets_selected = service_sets_selected
         self.resources_scale_factor = resources_scale_factor
         self._deployed_service_sets = []
-        self.specific_components = specific_components
+        self.specific_components = specific_components or []
         self._pick_service_sets = [comp.split("/")[0] for comp in self.specific_components]
         self.label = label
         self.skip = skip
