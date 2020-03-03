@@ -96,8 +96,8 @@ class SecretImporter(object):
     local_secrets_loaded = False
     handled_secret_names = []
 
-    @classmethod
-    def _get_secret(cls, name):
+    @staticmethod
+    def _get_secret(name):
         return oc("get", "secret", name, _exit_on_err=False)
 
     @classmethod
@@ -132,6 +132,7 @@ class SecretImporter(object):
                     f"Required secret '{name}' is missing in namespace and secret importing has"
                     " not been enabled via --secrets-src-project or --secrets-local-dir"
                 )
+            cls.handled_secret_names.append(name)
 
         if name not in cls.handled_secret_names:
             cls._import(name)
