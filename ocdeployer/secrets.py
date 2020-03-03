@@ -36,6 +36,7 @@ def parse_secret_file(path):
 def import_secrets_from_dir(path):
     files = get_cfg_files_in_dir(path)
     secrets = {}
+    log.info("Loading secrets from local path: %s", path)
     for secret_file in files:
         secrets_in_file = parse_secret_file(secret_file)
         log.info("Loaded secrets from file '%s", secret_file)
@@ -89,11 +90,15 @@ class SecretImporter(object):
     Keeps track of which secrets have been imported so we don't keep re-importing.
     """
 
-    source_project = "secrets"
+    source_project = None
     local_dir = None
     local_secrets_data = None
     local_secrets_loaded = False
-    imported_secret_names = []
+    handled_secret_names = []
+
+    @classmethod
+    def _get_secret(cls, name):
+        return oc("get", "secret", name, _exit_on_err=False)
 
     @classmethod
     def _import(cls, name):
@@ -105,33 +110,35 @@ class SecretImporter(object):
                 if secret_name == name:
                     log.info("Importing secret '%s' from local storage", name)
                     oc("apply", "-f", "-", _silent=True, _in=json.dumps(secret_data))
-                    cls.imported_secret_names.append(name)
+                    cls.handled_secret_names.append(name)
 
         # Check if the directory import took care of it... if not, import from project...
-        if name not in cls.imported_secret_names:
+        if cls.source_project and name not in cls.handled_secret_names:
             log.info("Secret '%s' not yet imported, trying import from project...", name)
             import_secret_from_project(cls.source_project, name)
-            cls.imported_secret_names.append(name)
+            cls.handled_secret_names.append(name)
 
     @classmethod
-    def do_import(cls, name, link=None, verify=False, **kwargs):
+    def handle(cls, name, link=None, verify=False, **kwargs):
         """
         Import secret to openshift project and optionally link to service accounts.
 
         If local_dir is defined, this tries to import all secrets in that dir first. If the
         secret we want is still not imported, we try to import from source_project instead
         """
-        if name not in cls.imported_secret_names:
+        if not cls.local_dir and not cls.source_project:
+            if not cls._get_secret(name):
+                raise Exception(
+                    f"Required secret '{name}' is missing in namespace and secret importing has"
+                    " not been enabled via --secrets-src-project or --secrets-local-dir"
+                )
+
+        if name not in cls.handled_secret_names:
             cls._import(name)
 
         if link:
             for sa in link:
                 oc("secrets", "link", sa, name, "--for=pull,mount")
-
-        if verify:
-            exists = oc("get", "secret", name, _exit_on_err=False)
-            if not exists:
-                raise AssertionError("secret '{}' does not exist after import".format(name))
 
 
 def import_secrets(config, env_names):
@@ -139,6 +146,9 @@ def import_secrets(config, env_names):
     secrets = parse_config(config)
     for secret in secrets:
         if not secret["envs"] or any([e in env_names for e in secret["envs"]]):
-            SecretImporter.do_import(**secret)
+            SecretImporter.handle(**secret)
         else:
-            log.info("Skipping import of secret '%s', not enabled for this env", secret["name"])
+            log.info(
+                "Skipping check/import of secret '%s', not enabled for this env",
+                secret["name"]
+            )

@@ -288,12 +288,12 @@ def deploy_dry_run(
 @click.option(
     "--secrets-local-dir",
     default=None,
-    help="Import secrets from local files in a directory (default 'secrets')",
+    help="Import secrets from local files in a directory",
 )
 @click.option(
     "--secrets-src-project",
-    default="secrets",
-    help="Openshift project to import secrets from (default: secrets)",
+    default=None,
+    help="Openshift project to import secrets from",
 )
 @click.option(
     "--ignore-requires",
@@ -337,7 +337,6 @@ def deploy_to_project(
     watch,
 ):
     root_custom_dir = get_dir(root_custom_dir, "custom", "custom scripts", optional=True)
-    secrets_local_dir = get_dir(secrets_local_dir, "secrets", "secrets", optional=True)
 
     if not dst_project:
         log.error("Error: no destination project given")
@@ -345,8 +344,10 @@ def deploy_to_project(
 
     verify_label(label)
 
-    SecretImporter.local_dir = secrets_local_dir
-    SecretImporter.source_project = secrets_src_project
+    if secrets_local_dir:
+        SecretImporter.local_dir = get_dir(secrets_local_dir, "secrets", "secrets", optional=True)
+    if secrets_src_project:
+        SecretImporter.source_project = secrets_src_project
 
     template_dir, env_config_handler, specific_components, sets_selected, confirm_msg = _parse_args(
         template_dir, env_values, env_files, all_services, sets, pick, dst_project
