@@ -89,7 +89,7 @@ def deploy_components(
         bcs = template.get_processed_names_for_restype("bc")
         for name in bcs:
             log.info("Re-triggering builds for '%s'", name)
-            oc("cancel-build", "bc/{}".format(name), state="pending,new,running")
+            oc("cancel-build", "bc/{}".format(name), state="pending,running")
             oc("start-build", "bc/{}".format(name))
 
     # Wait on all resources that have been marked as 'resources to wait for'
