@@ -628,7 +628,7 @@ def cancel_builds(bc_name):
     # Check if there's any lingering builds
     builds = get_json("build", label=f"openshift.io/build-config.name={bc_name}")
     lingering_builds = []
-    for build in builds:
+    for build in builds.get('items', []):
         # delete these builds rather than cancelling them, since jenkins pipeline builds
         # can remain stuck in certain states if OpenShift Sync plugin is broken
         status = build.get('status') or {}
