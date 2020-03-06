@@ -162,27 +162,19 @@ def all_sets(template_dir):
     return sets
 
 
-def oc(*args, **kwargs):
-    """
-    Run 'sh.oc' and print the command, show output, catch errors, etc.
+def _only_immutable_errors(err_lines):
+    return all(
+        "field is immutable after creation" in line.lower() for line in err_lines
+    )
 
-    Optional kwargs:
-        _reraise: if ErrorReturnCode is hit, don't exit, re-raise it
-        _exit_on_err: sys.exit(1) if this command fails (default True)
-        _silent: don't print command or resulting stdout (default False)
-        _ignore_immutable: ignore errors related to immutable objects (default True)
 
-    Returns:
-        None if cmd fails and _exit_on_err is False
-        command output (str) if command succeeds
-    """
-    _exit_on_err = kwargs.pop("_exit_on_err", True)
-    _silent = kwargs.pop("_silent", False)
-    _reraise = kwargs.pop("_reraise", False)
-    _ignore_immutable = kwargs.pop("_ignore_immutable", True)
+def _conflicts_found(err_lines):
+    return any(
+        "error from server (conflict)" in line.lower() for line in err_lines
+    )
 
-    kwargs["_bg_exc"] = True
 
+def _get_logging_args(args, kwargs):
     # Format the cmd args/kwargs for log printing before the command is run
     # Maybe 'sh' provides an easy way to do this...?
     cmd_args = " ".join([str(arg) for arg in args if arg is not None])
@@ -197,8 +189,15 @@ def oc(*args, **kwargs):
             cmd_kwargs.append("-{} {}".format(key, val))
     cmd_kwargs = " ".join(cmd_kwargs)
 
-    if not _silent:
-        log.info("Running command: oc %s %s", cmd_args, cmd_kwargs)
+    return cmd_args, cmd_kwargs
+
+
+def _exec_oc(*args, **kwargs):
+    _silent = kwargs.pop("_silent", False)
+    _ignore_immutable = kwargs.pop("_ignore_immutable", True)
+    _retry_conflicts = kwargs.pop("_retry_conflicts", True)
+
+    kwargs["_bg_exc"] = True
 
     err_lines = []
     out_lines = []
@@ -212,30 +211,69 @@ def oc(*args, **kwargs):
             log.info(" |stdout| %s", line.rstrip())
         out_lines.append(line)
 
-    try:
-        return sh.oc(
-            *args, **kwargs, _tee=True, _out=_out_line_handler, _err=_err_line_handler
-        ).wait()
-    except ErrorReturnCode as err:
-        immutable_errors_only = False
-
-        # Ignore warnings that are printed to stderr
-        err_lines = [line for line in err_lines if not line.lstrip().startswith("Warning:")]
-
-        if err_lines:
-            immutable_errors_only = all(
-                "field is immutable after creation" in line for line in err_lines
-            )
-
-        if immutable_errors_only and _ignore_immutable:
-            log.warning("Ignoring immutable field errors")
-        elif _reraise:
+    retries = 3
+    last_err = None
+    for count in range(1, retries + 1):
+        try:
+            if not _silent:
+                cmd_args, cmd_kwargs = _get_logging_args(args, kwargs)
+                log.info("Running command: oc %s %s", cmd_args, cmd_kwargs)
+            return sh.oc(
+                *args, **kwargs, _tee=True, _out=_out_line_handler, _err=_err_line_handler
+            ).wait()
+        except ErrorReturnCode as err:
             # Sometimes stdout/stderr is empty in the exception even though we appended
             # data in the callback. Perhaps buffers are not being flushed ... so just
             # set the out lines/err lines we captured on the Exception before re-raising it
             err.stdout = "\n".join(out_lines)
             err.stderr = "\n".join(err_lines)
-            raise err
+            last_err = err
+
+            # Ignore warnings that are printed to stderr in our error analysis
+            err_lines = [line for line in err_lines if not line.lstrip().startswith("Warning:")]
+
+            # Check if these are errors we should handle
+            if _ignore_immutable and _only_immutable_errors(err_lines):
+                log.warning("Ignoring immutable field errors")
+                break
+            elif _retry_conflicts and _conflicts_found(err_lines):
+                log.warning(
+                    "Hit resource conflict, retrying in 1 sec (attempt %d/%d)", count, retries
+                )
+                time.sleep(1)
+                continue
+
+            # Bail if not
+            raise
+    else:
+        log.error("Retried %d times, giving up", retries)
+        raise last_err
+
+
+def oc(*args, **kwargs):
+    """
+    Run 'sh.oc' and print the command, show output, catch errors, etc.
+
+    Optional kwargs:
+        _reraise: if ErrorReturnCode is hit, don't exit, re-raise it
+        _exit_on_err: sys.exit(1) if this command fails (default True)
+        _silent: don't print command or resulting stdout (default False)
+        _ignore_immutable: ignore errors related to immutable objects (default True)
+        _retry_conflicts: retry commands if a conflict error is hit
+
+    Returns:
+        None if cmd fails and _exit_on_err is False
+        command output (str) if command succeeds
+    """
+    _exit_on_err = kwargs.pop("_exit_on_err", True)
+    _reraise = kwargs.pop("_reraise", False)
+    # The _silent/_ignore_immutable/_retry_conflicts kwargs are passed on so don't pop them yet
+
+    try:
+        return _exec_oc(*args, **kwargs)
+    except ErrorReturnCode:
+        if _reraise:
+            raise
         elif _exit_on_err:
             log.error("Command failed!  Aborting.")
             sys.exit(1)
