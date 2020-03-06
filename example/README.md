@@ -168,7 +168,7 @@ You can also use a comma,separated,list with `-p` to pick multiple specific comp
 
 `ocdeployer` essentially does the following for each service set as it deploys them:
 1) Runs `oc import-image` for any images listed in the `_cfg.yml`. NOTE: if image streams with the same name/tag already exist in the project, they will be re-imported.
-2) Imports any needed secrets from the secrets local dir, or from a separate OpenShift project. NOTE: if any secrets exist with the same name in the project, they will be overwritten.
+2) Imports any needed secrets from the secrets local dir (if `--secrets-local-dir` is specified), or from a separate OpenShift project (if `--secrets-src-project` is specified). NOTE: if any secrets exist with the same name in the project, they will be overwritten.
 3) Runs custom pre-deploy logic, if any is defined.
 4) For each stage, it deploys the components in the configured order. If the default `deploy` logic is not overwritten by a custom deploy method:
     * the service-set env file is merged into the root-level env file.

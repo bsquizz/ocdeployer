@@ -158,7 +158,7 @@ The best way to explain how template configuration works is to describe the proc
 
     # (optional) secrets
     #
-    # Lists which secrets apps in this service set rely on; they will be imported at run time.
+    # Lists which secrets apps in this service set rely on; they will be validated or imported at run time.
     # A secret is only imported once per deploy run, so if other service sets rely on the same
     # secret it won't be imported again.
     secrets:
@@ -381,7 +381,9 @@ images:
 
 ### Secrets
 
-By default, `ocdeployer` will attempt to import secrets from the project `secrets` in OpenShift as well as by looking for secrets in the `./secrets` local directory. You can also use `--secrets-src-project` to copy secrets into your project from a different project in OpenShift, or use `--secrets-local-dir` to load secrets from OpenShift config files in a different directory.
+By default, `ocdeployer` will simply validate that the secrets specified in `_cfg.yml` already exist in your destination namespace.
+
+You can run `ocdeployer` with `--secrets-src-project` to import the required secrets into your project from a different project in OpenShift, or use `--secrets-local-dir` to load the required secrets from OpenShift config files stored in a local directory.
 
 If you set `--secrets-src-project` to be the same as the destination namespace, this effectively causes ocdeployer to simply validate that the secret is present in that namespace.
 
@@ -447,7 +449,7 @@ To use the secrets files in your next project deploy:
 By default, the following parameters are passed to templates by ocdeployer at deploy time:
 
 * 'NAMESPACE' corresponds to the project name selected on the CLI.
-* 'SECRETS_PROJECT' corresponds to the secrets-src-project selected on the CLI (default: "secrets")
+* 'SECRETS_PROJECT' corresponds to the secrets-src-project selected on the CLI
 
 
 You can define "environment" files in two places with more customized variable information.
@@ -591,7 +593,7 @@ Available service sets: ['platform', 'advisor', 'engine', 'vulnerability']
 
 Example to deploy platform/engine service sets using "prod" env, and import secrets from "mysecretsproject":
 ```
-(venv) $ ocdeployer deploy -s platform,engine -e prod --secrets-src mysecretsproject mynewproject
+(venv) $ ocdeployer deploy -s platform,engine -e prod --secrets-src-project mysecretsproject mynewproject
 ```
 
 You can scale the cpu/memory requests/limits for all your resources using the `--scale-resources` flag:
