@@ -10,7 +10,7 @@ import yaml
 
 from .config import merge_cfgs
 from .images import import_images
-from .utils import load_cfg_file, oc, wait_for_ready_threaded
+from .utils import cancel_builds, load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import import_secrets, SecretImporter
 from .templates import get_templates_in_dir
 
@@ -89,7 +89,7 @@ def deploy_components(
         bcs = template.get_processed_names_for_restype("bc")
         for name in bcs:
             log.info("Re-triggering builds for '%s'", name)
-            oc("cancel-build", "bc/{}".format(name), state="pending,running")
+            cancel_builds(name)
             oc("start-build", "bc/{}".format(name))
 
     # Wait on all resources that have been marked as 'resources to wait for'

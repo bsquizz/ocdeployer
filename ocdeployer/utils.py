@@ -582,3 +582,24 @@ def start_deployment(dc_name, timeout=180):
 def get_server_info():
     """Return server connected on"""
     return oc("whoami", "--show-server", _silent=True)
+
+
+def cancel_builds(bc_name):
+    oc("cancel-build", f"bc/{bc_name}", state="pending,running", _exit_on_err=False)
+
+    # Check if there's any lingering builds
+    builds = get_json("build", label=f"openshift.io/build-config.name={bc_name}")
+    lingering_builds = []
+    for build in builds:
+        # delete these builds rather than cancelling them, since jenkins pipeline builds
+        # can remain stuck in certain states if OpenShift Sync plugin is broken
+        status = build.get('status') or {}
+        phase = status.get('phase', "").lower()
+        if phase in ["new", "pending", "running"]:
+            build_name = build["metadata"]["name"]
+            lingering_builds.append(build_name)
+
+    if lingering_builds:
+        log.warning("Found lingering builds for bc/%s which will be deleted", bc_name)
+        for build_name in lingering_builds:
+            oc("delete", "build", build_name)
