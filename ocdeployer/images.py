@@ -96,6 +96,7 @@ class ImageImporter:
         oc(
             "tag", f"--scheduled={scheduled}", "--source=docker", image_from, istag,
         )
+        oc("import-image", istag)
 
     @classmethod
     def _import_image(cls, istag, image_from, scheduled):
