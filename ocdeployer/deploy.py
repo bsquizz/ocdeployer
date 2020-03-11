@@ -99,15 +99,14 @@ def deploy_components(
     return processed_templates_by_name
 
 
-def deploy_dry_run(
+def _deploy_dry_run(
     project_name,
     template_dir,
     components,
     variables_per_component,
-    wait=False,
-    timeout=None,
-    resources_scale_factor=1.0,
-    label=None,
+    label,
+    resources_scale_factor,
+    jinja_only,
 ):
     """
     Similar to deploy_components, but only processes the templates.
@@ -124,15 +123,66 @@ def deploy_dry_run(
             )
 
         template = templates_by_name.get(comp_name)
-        template.process(variables_per_component.get(comp_name, {}), resources_scale_factor, label)
+        if jinja_only:
+            template.process_jinja(variables_per_component.get(comp_name, {}))
 
-        if not template.processed_content:
+        else:
+            template.process(
+                variables_per_component.get(comp_name, {}), resources_scale_factor, label,
+            )
+
+        content_attr_name = "processed_content"
+        if jinja_only:
+            content_attr_name = "processed_jinja_content"
+        if not getattr(template, content_attr_name):
             log.info("Component %s has an empty template, skipping...", comp_name)
             continue
 
         processed_templates_by_name[comp_name] = template
 
     return processed_templates_by_name
+
+
+def deploy_dry_run(
+    project_name,
+    template_dir,
+    components,
+    variables_per_component,
+    wait=False,
+    timeout=None,
+    resources_scale_factor=1.0,
+    label=None,
+):
+    return _deploy_dry_run(
+        project_name,
+        template_dir,
+        components,
+        variables_per_component,
+        label,
+        resources_scale_factor,
+        jinja_only=False,
+    )
+
+
+def deploy_dry_run_jinja_only(
+    project_name,
+    template_dir,
+    components,
+    variables_per_component,
+    wait=False,
+    timeout=None,
+    resources_scale_factor=1.0,
+    label=None,
+):
+    return _deploy_dry_run(
+        project_name,
+        template_dir,
+        components,
+        variables_per_component,
+        label,
+        resources_scale_factor,
+        jinja_only=True,
+    )
 
 
 DEFAULT_DEPLOY_METHODS = (None, deploy_components, None)
@@ -164,9 +214,7 @@ def _get_custom_methods(service_set, service_set_dir, root_custom_dir):
         )
 
     if not module:
-        module = _load_module(
-            os.path.join(root_custom_dir, f"deploy.py"), service_set
-        )
+        module = _load_module(os.path.join(root_custom_dir, f"deploy.py"), service_set)
 
     if not module:
         log.exception("Error loading custom deploy script, using default deploy methods")
@@ -213,10 +261,14 @@ def _get_deploy_methods(config, service_set_name, service_set_dir, root_custom_d
     return pre_deploy_method, deploy_method, post_deploy_method
 
 
-def generate_dry_run_content(all_processed_templates, output="yaml", to_dir=None):
+def generate_dry_run_content(all_processed_templates, output="yaml", to_dir=None, jinja_only=False):
     """
     Write processed template content to output directory, or print to stdout if no dir given.
     """
+    content_attr_name = "processed_content"
+    if jinja_only:
+        content_attr_name = "processed_jinja_content"
+
     if to_dir:
         to_dir = os.path.abspath(to_dir)
         try:
@@ -228,15 +280,16 @@ def generate_dry_run_content(all_processed_templates, output="yaml", to_dir=None
 
     for service_set, processed_templates in all_processed_templates.items():
         for template_name, template_obj in processed_templates.items():
-            if not template_obj.processed_content:
+            content = getattr(template_obj, content_attr_name)
+            if not content:
                 log.warning("Template '%s' had no processed content", template_name)
             else:
                 if output not in ["yaml", "json"]:
                     output = "yaml"
                 if output == "yaml":
-                    text = yaml.dump(template_obj.processed_content, default_flow_style=False)
+                    text = yaml.dump(content, default_flow_style=False)
                 else:
-                    text = json.dumps(template_obj.processed_content, indent=2)
+                    text = json.dumps(content, indent=2)
 
                 if to_dir:
                     service_set_dir = os.path.join(to_dir, service_set)
@@ -434,7 +487,9 @@ class DeployRunner(object):
 
         if self.dry_run:
             log.info("Doing a DRY RUN of deployment")
-            pre_deploy_func, deploy_func, post_deploy_func = None, deploy_dry_run, None
+            jinja_only = self.dry_run_opts.get("jinja_only")
+            deploy_dry_run_func = deploy_dry_run_jinja_only if jinja_only else deploy_dry_run
+            pre_deploy_func, deploy_func, post_deploy_func = None, deploy_dry_run_func, None
         else:
             import_secrets(set_cfg, self.env_config_handler.env_names)
             import_images(set_cfg, self.env_config_handler.env_names)

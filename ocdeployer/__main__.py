@@ -246,6 +246,13 @@ def _parse_args(template_dir, env_values, env_files, all_services, sets, pick, d
     default=None,
     help="Save processed templates to specific output directory (default: print to stdout)",
 )
+@click.option(
+    "-j",
+    "--jinja-only",
+    default=False,
+    is_flag=True,
+    help="Only provide the output of processing jinja, excludes 'oc process'",
+)
 @click.argument("dst_project")
 def deploy_dry_run(
     dst_project,
@@ -259,6 +266,7 @@ def deploy_dry_run(
     skip,
     output,
     to_dir,
+    jinja_only,
 ):
     template_dir, env_config_handler, specific_components, sets_selected, _ = _parse_args(
         template_dir, env_values, env_files, all_services, sets, pick, dst_project
@@ -278,7 +286,7 @@ def deploy_dry_run(
         label=None,
         skip=skip.split(",") if skip else None,
         dry_run=True,
-        dry_run_opts={"output": output, "to_dir": to_dir},
+        dry_run_opts={"output": output, "to_dir": to_dir, "jinja_only": jinja_only},
     ).run()
 
 
@@ -286,14 +294,10 @@ def deploy_dry_run(
 @common_options
 @click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
 @click.option(
-    "--secrets-local-dir",
-    default=None,
-    help="Import secrets from local files in a directory",
+    "--secrets-local-dir", default=None, help="Import secrets from local files in a directory",
 )
 @click.option(
-    "--secrets-src-project",
-    default=None,
-    help="Openshift project to import secrets from",
+    "--secrets-src-project", default=None, help="Openshift project to import secrets from",
 )
 @click.option(
     "--ignore-requires",

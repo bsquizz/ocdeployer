@@ -150,6 +150,5 @@ def import_secrets(config, env_names):
             SecretImporter.handle(**secret)
         else:
             log.info(
-                "Skipping check/import of secret '%s', not enabled for this env",
-                secret["name"]
+                "Skipping check/import of secret '%s', not enabled for this env", secret["name"]
             )

@@ -163,15 +163,11 @@ def all_sets(template_dir):
 
 
 def _only_immutable_errors(err_lines):
-    return all(
-        "field is immutable after creation" in line.lower() for line in err_lines
-    )
+    return all("field is immutable after creation" in line.lower() for line in err_lines)
 
 
 def _conflicts_found(err_lines):
-    return any(
-        "error from server (conflict)" in line.lower() for line in err_lines
-    )
+    return any("error from server (conflict)" in line.lower() for line in err_lines)
 
 
 def _get_logging_args(args, kwargs):
@@ -628,11 +624,11 @@ def cancel_builds(bc_name):
     # Check if there's any lingering builds
     builds = get_json("build", label=f"openshift.io/build-config.name={bc_name}")
     lingering_builds = []
-    for build in builds.get('items', []):
+    for build in builds.get("items", []):
         # delete these builds rather than cancelling them, since jenkins pipeline builds
         # can remain stuck in certain states if OpenShift Sync plugin is broken
-        status = build.get('status') or {}
-        phase = status.get('phase', "").lower()
+        status = build.get("status") or {}
+        phase = status.get("phase", "").lower()
         if phase in ["new", "pending", "running"]:
             build_name = build["metadata"]["name"]
             lingering_builds.append(build_name)
