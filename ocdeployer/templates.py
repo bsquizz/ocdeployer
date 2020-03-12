@@ -143,6 +143,7 @@ class Template(object):
         self.path = path
         self.file_name, self.file_extension = os.path.splitext(self.path)
         self.processed_content = {}
+        self.processed_jinja_content = {}
 
     @staticmethod
     def _jinja_safe(data):
@@ -246,8 +247,13 @@ class Template(object):
         rendered_txt = template.render(**variables)
         if not rendered_txt.strip():
             log.info("Template '%s' is empty after jinja2 processing", self.file_name)
-            return None
-        return self._load_content(rendered_txt)
+            self.processed_jinja_content = {}
+        else:
+            self.processed_jinja_content = self._load_content(rendered_txt)
+        return self.processed_jinja_content
+
+    def process_jinja(self, variables):
+        return self._process_via_jinja2(variables)
 
     def process(self, variables, resources_scale_factor=1.0, label=None):
         # Run the template through jinja processing first
