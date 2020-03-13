@@ -1,6 +1,7 @@
 """
 Handles deploy logic for components
 """
+import copy
 import importlib
 import json
 import logging
@@ -9,10 +10,10 @@ import sys
 import yaml
 
 from .config import merge_cfgs
-from .images import import_images
+from .images import get_is_configs, import_images
 from .utils import cancel_builds, load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import import_secrets, SecretImporter
-from .templates import get_templates_in_dir
+from .templates import Template, get_templates_in_dir
 
 
 log = logging.getLogger(__name__)
@@ -203,7 +204,7 @@ def _load_module(path, service_set):
     return module
 
 
-def _get_custom_methods(service_set, service_set_dir, root_custom_dir):
+def _get_custom_deploy_methods(service_set, service_set_dir, root_custom_dir):
     """
     Look for custom deploy module and import its methods.
     """
@@ -253,7 +254,7 @@ def _get_custom_methods(service_set, service_set_dir, root_custom_dir):
 
 def _get_deploy_methods(config, service_set_name, service_set_dir, root_custom_dir):
     if config.get("custom_deploy_logic", False):
-        pre_deploy_method, deploy_method, post_deploy_method = _get_custom_methods(
+        pre_deploy_method, deploy_method, post_deploy_method = _get_custom_deploy_methods(
             service_set_name, service_set_dir, root_custom_dir
         )
     else:
@@ -280,7 +281,13 @@ def generate_dry_run_content(all_processed_templates, output="yaml", to_dir=None
 
     for service_set, processed_templates in all_processed_templates.items():
         for template_name, template_obj in processed_templates.items():
-            content = getattr(template_obj, content_attr_name)
+            # Check if the template_obj is an actual template... the "_imagestreams" component
+            # added during dry run is just a plain dict
+            if isinstance(template_obj, Template):
+                content = getattr(template_obj, content_attr_name)
+            else:
+                content = template_obj
+
             if not content:
                 log.warning("Template '%s' had no processed content", template_name)
             else:
@@ -332,6 +339,7 @@ class DeployRunner(object):
         self.dry_run = dry_run
         self.dry_run_opts = dry_run_opts or {}
         self.env_config_handler = env_config_handler
+        self._base_is_configs = {}
 
     def _get_variables(self, service_set_name, service_set_dir, component):
         variables = {}
@@ -490,6 +498,23 @@ class DeployRunner(object):
             jinja_only = self.dry_run_opts.get("jinja_only")
             deploy_dry_run_func = deploy_dry_run_jinja_only if jinja_only else deploy_dry_run
             pre_deploy_func, deploy_func, post_deploy_func = None, deploy_dry_run_func, None
+
+            is_configs = copy.deepcopy(self._base_is_configs)
+            new_is_configs = get_is_configs(set_cfg, self.env_config_handler.env_names)
+            for istag, is_config in new_is_configs.items():
+                # If an istag is imported by the base _cfg, due to the way ImageImporter works,
+                # it will not be re-imported again. So don't overwrite that istag in our
+                # processed output either.
+                if istag not in is_configs:
+                    is_configs[istag] = is_config
+
+            if is_configs:
+                processed_templates["_imagestreams"] = {
+                    "apiVersion": "v1",
+                    "kind": "List",
+                    "items": [config for _, config in is_configs.items()],
+                }
+
         else:
             import_secrets(set_cfg, self.env_config_handler.env_names)
             import_images(set_cfg, self.env_config_handler.env_names)
@@ -548,6 +573,7 @@ class DeployRunner(object):
         base_cfg = self._get_base_cfg()
         deploy_order = base_cfg.get("deploy_order", {})
 
+        self._base_is_configs = get_is_configs(base_cfg, self.env_config_handler.env_names)
         if not self.dry_run:
             import_secrets(base_cfg, self.env_config_handler.env_names)
             import_images(base_cfg, self.env_config_handler.env_names)

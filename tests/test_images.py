@@ -1,6 +1,6 @@
 import pytest
 
-from ocdeployer.images import import_images
+from ocdeployer.images import ImageImporter, import_images
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def test_images_short_style_syntax(mocker, mock_oc):
             {"image2:tag": "docker.url/image2:sometag"},
         ]
     }
-
+    ImageImporter.imported_istags = []
     import_images(config_content, [])
 
     _check_oc_calls(mocker, mock_oc)
@@ -54,6 +54,7 @@ def test_images_long_style_syntax(mocker, mock_oc):
         ]
     }
 
+    ImageImporter.imported_istags = []
     import_images(config_content, [])
 
     _check_oc_calls(mocker, mock_oc)
@@ -67,6 +68,7 @@ def test_images_old_style_syntax(mocker, mock_oc):
         }
     }
 
+    ImageImporter.imported_istags = []
     import_images(config_content, [])
 
     _check_oc_calls(mocker, mock_oc)
@@ -80,6 +82,7 @@ def test_images_mixed_style_syntax(mocker, mock_oc):
         ]
     }
 
+    ImageImporter.imported_istags = []
     import_images(config_content, [])
 
     _check_oc_calls(mocker, mock_oc)
@@ -92,6 +95,8 @@ def test_images_conditional_images(mocker, mock_oc):
             {"istag": "image2:tag", "from": "docker.url/image2:sometag"},
         ]
     }
+
+    ImageImporter.imported_istags = []
     import_images(config_content, ["prod"])
 
     _check_oc_calls(mocker, mock_oc)
@@ -104,6 +109,8 @@ def test_images_conditional_ignore_image(mocker, mock_oc):
             {"istag": "image2:tag", "from": "docker.url/image2:sometag"},
         ]
     }
+
+    ImageImporter.imported_istags = []
     import_images(config_content, ["foo"])
 
     assert mock_oc.call_count == 1
