@@ -133,12 +133,15 @@ class ImageImporter:
     def do_import(cls, istag, image_from, scheduled, **kwargs):
         if istag in cls.imported_istags:
             log.warning("istag '%s' already imported, skipping repeat import...", istag)
+            return
 
         scheduled = "True" if scheduled else "False"
         if get_json("istag", istag):
             cls._retag_image(istag, image_from, scheduled)
         else:
             cls._import_image(istag, image_from, scheduled)
+
+        cls.imported_istags.append(istag)
 
 
 def _get_args(config, env_names):

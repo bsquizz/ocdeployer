@@ -502,7 +502,9 @@ class DeployRunner(object):
             is_configs = copy.deepcopy(self._base_is_configs)
             new_is_configs = get_is_configs(set_cfg, self.env_config_handler.env_names)
             for istag, is_config in new_is_configs.items():
-                # If an istag is imported by the base _cfg, it will not be re-imported by this _cfg
+                # If an istag is imported by the base _cfg, due to the way ImageImporter works,
+                # it will not be re-imported again. So don't overwrite that istag in our
+                # processed output either.
                 if istag not in is_configs:
                     is_configs[istag] = is_config
 
