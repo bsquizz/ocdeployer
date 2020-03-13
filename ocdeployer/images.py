@@ -6,6 +6,26 @@ from .utils import oc, get_json, validate_list_of_strs
 log = logging.getLogger("ocdeployer.images")
 
 
+# Template of an ImageStream config that 'oc import-image' will create
+def _get_is_config(is_name, is_tag, image_from, scheduled):
+    return {
+        "apiVersion": "image.openshift.io/v1",
+        "kind": "ImageStream",
+        "metadata": {"name": is_name},
+        "spec": {
+            "lookupPolicy": {"local": False},
+            "tags": [
+                {
+                    "from": {"kind": "DockerImage", "name": image_from},
+                    "importPolicy": {"scheduled": scheduled},
+                    "name": is_tag,
+                    "referencePolicy": {"type": "Source"},
+                }
+            ],
+        },
+    }
+
+
 def _parse_istag(istag):
     """Append "latest" tag onto istag if it has no tag."""
     if ":" not in istag:
@@ -121,15 +141,31 @@ class ImageImporter:
             cls._import_image(istag, image_from, scheduled)
 
 
-def import_images(config, env_names):
-    """Import the specified images listed in a _cfg.yml"""
-
+def _get_args(config, env_names):
+    args = []
     images = parse_config(config)
     for img_data in images:
         istag = img_data["istag"]
         image_from = img_data["from"]
         scheduled = img_data.get("scheduled", True)
         if not img_data["envs"] or any([e in env_names for e in img_data["envs"]]):
-            ImageImporter.do_import(istag, image_from, scheduled)
+            args.append((istag, image_from, scheduled))
         else:
             log.info("Skipping import of image '%s', not enabled for this env", img_data["istag"])
+    return args
+
+
+def import_images(config, env_names):
+    """Import the specified images listed in a _cfg.yml"""
+    for args in _get_args(config, env_names):
+        ImageImporter.do_import(*args)
+
+
+def get_is_configs(config, env_names):
+    """Return a list of image stream configs that would be created based on images in _cfg.yml"""
+    items = {}
+    for args in _get_args(config, env_names):
+        istag, image_from, scheduled = args
+        is_name, is_tag = istag.split(":")
+        items[istag] = _get_is_config(is_name, is_tag, image_from, scheduled)
+    return items

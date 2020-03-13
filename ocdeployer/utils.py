@@ -637,3 +637,16 @@ def cancel_builds(bc_name):
         log.warning("Found lingering builds for bc/%s which will be deleted", bc_name)
         for build_name in lingering_builds:
             oc("delete", "build", build_name)
+
+
+def traverse_keys(d, keys, default=None):
+    """
+    Allows you to look up a 'path' of keys in nested dicts without knowing whether each key exists
+    """
+    key = keys.pop(0)
+    item = d.get(key, default)
+    if len(keys) == 0:
+        return item
+    if not item:
+        return default
+    return traverse_keys(item, keys, default)
