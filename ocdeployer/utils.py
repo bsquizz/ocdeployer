@@ -619,7 +619,7 @@ def get_server_info():
 
 
 def cancel_builds(bc_name):
-    oc("cancel-build", f"bc/{bc_name}", state="pending,running", _exit_on_err=False)
+    oc("cancel-build", f"bc/{bc_name}", state="new,pending", _timeout=120, _exit_on_err=False)
 
     # Check if there's any lingering builds
     builds = get_json("build", label=f"openshift.io/build-config.name={bc_name}")
@@ -629,7 +629,7 @@ def cancel_builds(bc_name):
         # can remain stuck in certain states if OpenShift Sync plugin is broken
         status = build.get("status") or {}
         phase = status.get("phase", "").lower()
-        if phase in ["new", "pending", "running"]:
+        if phase in ["new", "pending"]:
             build_name = build["metadata"]["name"]
             lingering_builds.append(build_name)
 

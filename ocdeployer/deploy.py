@@ -11,8 +11,7 @@ import yaml
 
 from .config import merge_cfgs
 from .images import get_is_configs, import_images
-# from .utils import cancel_builds
-from .utils import get_json, load_cfg_file, oc, wait_for_ready_threaded
+from .utils import cancel_builds, get_json, load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import import_secrets, SecretImporter
 from .templates import Template, get_templates_in_dir
 
@@ -91,8 +90,8 @@ def deploy_components(
         bcs = template.get_processed_names_for_restype("bc")
         for name in bcs:
             log.info("Triggering builds for '%s'", name)
-            # Build cancellation is causing problems with layered builds
-            # cancel_builds(name)
+            # Cancel any new/pending builds
+            cancel_builds(name)
             oc("start-build", "bc/{}".format(name))
             json_data = get_json("bc", name)
             last_version = json_data["status"]["lastVersion"]
