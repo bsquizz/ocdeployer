@@ -89,8 +89,9 @@ def deploy_components(
         # Re-trigger any builds for deployed build configs
         bcs = template.get_processed_names_for_restype("bc")
         for name in bcs:
-            log.info("Re-triggering builds for '%s'", name)
-            cancel_builds(name)
+            log.info("Triggering builds for '%s'", name)
+            # Build cancellation is causing problems with layered builds
+            #cancel_builds(name)
             oc("start-build", "bc/{}".format(name))
             json_data = get_json("bc", name)
             last_version = json_data["status"]["lastVersion"]
