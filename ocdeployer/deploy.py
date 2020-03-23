@@ -11,7 +11,7 @@ import yaml
 
 from .config import merge_cfgs
 from .images import get_is_configs, import_images
-from .utils import cancel_builds, load_cfg_file, oc, wait_for_ready_threaded
+from .utils import cancel_builds, get_json, load_cfg_file, oc, wait_for_ready_threaded
 from .secrets import import_secrets, SecretImporter
 from .templates import Template, get_templates_in_dir
 
@@ -81,7 +81,7 @@ def deploy_components(
         oc("apply", "-f", "-", "-n", project_name, _in=template.dump_processed_json())
 
         # Mark certain resources in this component as ones we need to wait on
-        for restype in ("dc", "bc", "sts"):
+        for restype in ("dc", "sts"):
             resources_to_wait_for.extend(
                 [(restype, name) for name in template.get_processed_names_for_restype(restype)]
             )
@@ -92,6 +92,10 @@ def deploy_components(
             log.info("Re-triggering builds for '%s'", name)
             cancel_builds(name)
             oc("start-build", "bc/{}".format(name))
+            json_data = get_json("bc", name)
+            last_version = json_data["status"]["lastVersion"]
+            build = "{}-{}".format(name, last_version)
+            resources_to_wait_for.append(("build", build))
 
     # Wait on all resources that have been marked as 'resources to wait for'
     if wait:
