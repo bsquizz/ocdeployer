@@ -10,6 +10,7 @@ import os
 import yaml
 from functools import reduce
 
+from anytree import Node, RenderTree
 import sh
 from sh import ErrorReturnCode
 from wait_for import wait_for, TimedOutError
@@ -75,6 +76,19 @@ def object_merge(old, new, merge_lists=True):
             else:
                 object_merge(value, new[key])
     return new
+
+
+def traverse_keys(d, keys, default=None):
+    """
+    Allows you to look up a 'path' of keys in nested dicts without knowing whether each key exists
+    """
+    key = keys.pop(0)
+    item = d.get(key, default)
+    if len(keys) == 0:
+        return item
+    if not item:
+        return default
+    return traverse_keys(item, keys, default)
 
 
 def parse_restype(string):
@@ -639,14 +653,81 @@ def cancel_builds(bc_name):
             oc("delete", "build", build_name)
 
 
-def traverse_keys(d, keys, default=None):
+def get_input_image(buildconfig, trigger):
     """
-    Allows you to look up a 'path' of keys in nested dicts without knowing whether each key exists
+    Look up the image stream input image for a build triggered by imagechange.
     """
-    key = keys.pop(0)
-    item = d.get(key, default)
-    if len(keys) == 0:
-        return item
-    if not item:
-        return default
-    return traverse_keys(item, keys, default)
+    bc = buildconfig
+    input_image = None
+
+    if trigger["imageChange"] != {}:
+        # the image used for trigger is explicitly defined, we're done
+        input_image = trigger["imageChange"]["from"]["name"]
+        return input_image
+
+    # we need to look up the image used for trigger in the bc's configuration
+    # check if there's a dockerfile with FROM line
+    dockerfile = traverse_keys(bc, ["spec", "source", "dockerfile"])
+    if dockerfile:
+        for line in dockerfile.splitlines():
+            if line.startswith("FROM"):
+                input_image = line.split()[1]
+                if ":" not in input_image:
+                    input_image = f"{input_image}:latest"
+                break
+
+    # check if the source imagestreamtag is defined in the strategy config
+    for key in ["dockerStrategy", "sourceStrategy", "customStrategy"]:
+        from_kind = traverse_keys(bc, ["spec", "strategy", key, "from", "kind"], "").lower()
+        if from_kind == "imagestreamtag":
+            input_image = bc["spec"]["strategy"][key]["from"]["name"]
+
+    return input_image
+
+
+def get_linked_builds(buildconfigs):
+    """
+    Analyze build configurations to find which builds are 'linked'.
+
+    Linked builds are those which output to an ImageStream that another BuildConfig then
+    uses as its 'from' image.
+
+    Returns a list of Node instances which are parent nodes
+    """
+    bcs_using_input_image = {}
+    bc_creating_output_image = {None: None}
+    node_for_bc = {}
+    for bc in buildconfigs:
+        bc_name = bc["metadata"]["name"]
+        node_for_bc[bc_name] = Node(bc_name)
+
+        # look up output image
+        if traverse_keys(bc, ["spec", "output", "to", "kind"], "").lower() == "imagestreamtag":
+            output_image = bc["spec"]["output"]["to"]["name"]
+            bc_creating_output_image[output_image] = bc_name
+
+        # look up input image
+        for trigger in traverse_keys(bc, ["spec", "triggers"], []):
+            if trigger["type"].lower() == "imagechange":
+                input_image = get_input_image(bc, trigger)
+                if input_image not in bcs_using_input_image:
+                    bcs_using_input_image[input_image] = []
+                bcs_using_input_image[input_image].append(bc_name)
+
+    # attach each build to its parent build
+    for input_image, bc_names in bcs_using_input_image.items():
+        for bc_name in bc_names:
+            parent_bc = bc_creating_output_image.get(input_image)
+            if parent_bc:
+                node_for_bc[bc_name].parent = node_for_bc[parent_bc]
+
+    rendered_trees = []
+    root_nodes = [n for _, n in node_for_bc.items() if n.is_root]
+    for root_node in root_nodes:
+        for pre, _, node in RenderTree(root_node):
+            rendered_trees.append(f"{pre}{node.name}")
+
+    if rendered_trees:
+        log.info("build config tree:\n\n%s", "\n".join(rendered_trees))
+
+    return root_nodes
