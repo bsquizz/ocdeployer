@@ -6,4 +6,5 @@ appdirs
 wait_for
 jinja2
 cached_property
+anytree
 -e .

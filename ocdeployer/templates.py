@@ -280,6 +280,19 @@ class Template(object):
     def dump_processed_json(self):
         return json.dumps(self.processed_content)
 
+    def get_processed_items_for_restype(self, restype):
+        """
+        Return list of objects of type 'restype' in the processed template
+
+        Note at the moment this only searches the 1st level of objects (for example,
+        it will not return the name of a pod embedded within a deployment config)
+        """
+        restype = parse_restype(restype)
+
+        return [
+            obj for obj in self.processed_content.get("items", []) if obj["kind"].lower() == restype
+        ]
+
     def get_processed_names_for_restype(self, restype):
         """
         Return list of names for all objects of type 'restype' in the processed template
@@ -287,12 +300,4 @@ class Template(object):
         Note at the moment this only searches the 1st level of objects (for example,
         it will not return the name of a pod embedded within a deployment config)
         """
-        restype = parse_restype(restype)
-
-        names = []
-
-        for obj in self.processed_content.get("items", []):
-            if obj["kind"].lower() == restype:
-                names.append(obj["metadata"]["name"])
-
-        return names
+        return [obj["metadata"]["name"] for obj in self.get_processed_items_for_restype(restype)]
