@@ -31,6 +31,7 @@ setup(
         "cached_property",
         "pytz",
         "kubernetes",
+        "anytree",
     ],
     classifiers=[
         "Topic :: Utilities",
