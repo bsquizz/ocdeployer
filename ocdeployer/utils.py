@@ -213,8 +213,7 @@ def _exec_oc(*args, **kwargs):
     out_lines = []
 
     def _err_line_handler(line):
-        if not _silent:
-            log.info(" |stderr| %s", line.rstrip())
+        log.info(" |stderr| %s", line.rstrip())
         err_lines.append(line)
 
     def _out_line_handler(line):
