@@ -7,6 +7,7 @@ import os
 import json
 import sys
 import re
+import threading
 
 import prompter
 import yaml
@@ -26,9 +27,6 @@ from ocdeployer.events import start_event_watcher
 
 
 log = logging.getLogger("ocdeployer")
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("sh").setLevel(logging.CRITICAL)
-
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
@@ -107,7 +105,13 @@ def verify_label(label):
 )
 def main():
     """Main ocdeployer group"""
-    pass
+    threading.current_thread().name = "main"
+    logging.basicConfig(
+        level=logging.INFO,
+        datefmt="%Y-%m-%d %H:%M:%S",
+        format="%(asctime)s %(levelname)8s [%(threadName)20s] %(message)s",
+    )
+    logging.getLogger("sh").setLevel(logging.CRITICAL)
 
 
 # Options shared by both the "deploy" command and the "process" command
@@ -151,6 +155,12 @@ _common_options = [
         type=float,
         default=1.0,
         help="Factor to scale configured cpu/memory resource requests/limits by",
+    ),
+    click.option(
+        "--concurrent",
+        "-c",
+        is_flag=True,
+        help="Deploy service sets within a stage concurrently using thread pool",
     ),
 ]
 
@@ -267,6 +277,7 @@ def deploy_dry_run(
     output,
     to_dir,
     jinja_only,
+    concurrent,
 ):
     template_dir, env_config_handler, specific_components, sets_selected, _ = _parse_args(
         template_dir, env_values, env_files, all_services, sets, pick, dst_project
@@ -287,6 +298,7 @@ def deploy_dry_run(
         skip=skip.split(",") if skip else None,
         dry_run=True,
         dry_run_opts={"output": output, "to_dir": to_dir, "jinja_only": jinja_only},
+        concurrent=concurrent,
     ).run()
 
 
@@ -339,6 +351,7 @@ def deploy_to_project(
     label,
     skip,
     watch,
+    concurrent,
 ):
     root_custom_dir = get_dir(root_custom_dir, "custom", "custom scripts", optional=True)
 
@@ -378,6 +391,7 @@ def deploy_to_project(
         label=label,
         skip=skip.split(",") if skip else None,
         dry_run=False,
+        concurrent=concurrent,
     ).run()
 
     if watch and event_watcher:

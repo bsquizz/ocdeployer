@@ -7,7 +7,9 @@ import json
 import logging
 import os
 import sys
+import threading
 import yaml
+import concurrent.futures
 
 from .config import merge_cfgs
 from .images import get_is_configs, import_images
@@ -322,6 +324,7 @@ class DeployRunner(object):
         skip=None,
         dry_run=False,
         dry_run_opts=None,
+        concurrent=False,
     ):
         self.template_dir = template_dir
         self.root_custom_dir = root_custom_dir
@@ -338,6 +341,7 @@ class DeployRunner(object):
         self.dry_run_opts = dry_run_opts or {}
         self.env_config_handler = env_config_handler
         self._base_is_configs = {}
+        self.concurrent = concurrent
 
     def _get_variables(self, service_set_name, service_set_dir, component):
         variables = {}
@@ -482,7 +486,11 @@ class DeployRunner(object):
         return merge_cfgs(set_cfg, set_env_cfg)
 
     def _deploy_service_set(self, service_set):
+        if self.concurrent:
+            threading.current_thread().name = service_set[:21]
+
         log.info("Handling config for service set '%s'", service_set)
+
         processed_templates = {}
 
         dir_path = os.path.join(self.template_dir, service_set)
@@ -553,6 +561,31 @@ class DeployRunner(object):
         self._deployed_service_sets.append(service_set)
         return processed_templates
 
+    def _deploy_sets_concurrently(self, service_sets_selected):
+        all_processed_templates = {}
+        failed_sets = []
+
+        log.info("deploy service sets in this stage concurrently")
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(self._deploy_service_set, service_set): service_set
+                for service_set in service_sets_selected
+            }
+        for future in concurrent.futures.as_completed(futures):
+            service_set = futures[future]
+            try:
+                all_processed_templates[service_set] = future.result()
+            except Exception as exc:
+                log.exception("Service set '%s' hit exception", service_set)
+            failed_sets.append(service_set)
+
+        if failed_sets:
+            log.error("deploys failed for service set(s): %s", ", ".join(failed_sets))
+            raise Exception("deploys failed in stage")
+
+        return all_processed_templates
+
     def run(self):
         """
         Load the "_cfg.yml" at {dir_path}, parse it, and deploy the defined components
@@ -592,13 +625,24 @@ class DeployRunner(object):
 
         for stage in sorted(deploy_order.keys()):
             service_sets = deploy_order[stage].get("components", [])
+            service_sets_selected = []
             for service_set in service_sets:
                 if service_set not in sets_for_deploy:
                     log.info(
                         "Skipping service set '%s', not selected for deploy at runtime", service_set
                     )
                     continue
-                else:
+                service_sets_selected.append(service_set)
+
+            if not service_sets_selected:
+                raise ValueError("No service sets selected for deploy")
+
+            if self.concurrent:
+                all_processed_templates.update(
+                    self._deploy_sets_concurrently(service_sets_selected)
+                )
+            else:
+                for service_set in selected_service_sets:
                     all_processed_templates[service_set] = self._deploy_service_set(service_set)
 
         if self.dry_run:

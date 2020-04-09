@@ -223,16 +223,18 @@ def _exec_oc(*args, **kwargs):
     _stdout_log_prefix = kwargs.pop("_stdout_log_prefix", " |stdout| ")
     _stderr_log_prefix = kwargs.pop("_stderr_log_prefix", " |stderr| ")
 
-    kwargs["_bg_exc"] = True
+    kwargs["_bg"] = True
 
     err_lines = []
     out_lines = []
 
-    def _err_line_handler(line):
+    def _err_line_handler(line, _, process):
+        threading.current_thread().name = f"pid-{process.pid}"
         log.info("%s%s", _stderr_log_prefix, line.rstrip())
         err_lines.append(line)
 
-    def _out_line_handler(line):
+    def _out_line_handler(line, _, process):
+        threading.current_thread().name = f"pid-{process.pid}"
         if not _silent:
             log.info("%s%s", _stdout_log_prefix, line.rstrip())
         out_lines.append(line)
@@ -241,12 +243,11 @@ def _exec_oc(*args, **kwargs):
     last_err = None
     for count in range(1, retries + 1):
         try:
+            cmd = sh.oc(*args, **kwargs, _tee=True, _out=_out_line_handler, _err=_err_line_handler)
             if not _silent:
                 cmd_args, cmd_kwargs = _get_logging_args(args, kwargs)
-                log.info("Running command: oc %s %s", cmd_args, cmd_kwargs)
-            return sh.oc(
-                *args, **kwargs, _tee=True, _out=_out_line_handler, _err=_err_line_handler
-            ).wait()
+                log.info("running (pid %d): oc %s %s", cmd.pid, cmd_args, cmd_kwargs)
+            return cmd.wait()
         except ErrorReturnCode as err:
             # Sometimes stdout/stderr is empty in the exception even though we appended
             # data in the callback. Perhaps buffers are not being flushed ... so just
@@ -488,6 +489,33 @@ def _check_status_for_restype(restype, json_data):
         )
 
 
+def _wait_with_periodic_status_check(timeout, key, restype, name):
+    """Check if resource is ready using _check_status_for_restype, periodically log an update."""
+    time_last_logged = time.time()
+    time_remaining = timeout
+
+    def _ready():
+		nonlocal time_last_logged, time_remaining
+
+		j = get_json(restype, name)
+		if _check_status_for_restype(restype, j):
+			return True
+
+		if time.time() > time_last_logged + 60:
+			time_remaining -= 60
+			if time_remaining:
+				log.info("[%s] waiting %dsec longer", key, time_remaining)
+				time_last_logged = time.time()
+		return False
+
+	wait_for(
+		_ready,
+		timeout=timeout,
+		delay=5,
+		message="wait for '{}' to be ready".format(key),
+	)
+
+
 def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=None):
     """
     Wait {timeout} for resource to be complete/ready/active.
@@ -530,22 +558,18 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
                 _stderr_log_prefix=f"[{key}]  ",
             )
         else:
-            wait_for(
-                lambda: _check_status_for_restype(restype, get_json(restype, name)) is True,
-                timeout=timeout,
-                delay=5,
-                message="wait for '{}' to complete".format(key),
-                log_on_loop=True,
-            )
+            _wait_with_periodic_status_check(timeout, key, restype, name)
 
         log.info("[%s] is ready!", key)
         _result_dict[key] = True
         return True
-    except (ErrorReturnCode, TimeoutException, TimedOutError, StatusError):
-        log.exception("[%s] hit error waiting for resource to be ready", key)
-        if exit_on_err:
-            abort()
-        return False
+    except (StatusError, ErrorReturnCode) as err:
+        log.error("[%s] hit error waiting for resource to be ready: %s", key, str(err))
+    except (TimeoutException, TimedOutError):
+        log.error("[%s] timed out waiting for resource to be ready", key)
+    if exit_on_err:
+        abort()
+    return False
 
 
 def wait_for_ready_threaded(restype_name_list, timeout=300, exit_on_err=False):
@@ -567,6 +591,8 @@ def wait_for_ready_threaded(restype_name_list, timeout=300, exit_on_err=False):
         for restype, name in restype_name_list
     ]
     for thread in threads:
+        thread.daemon = True
+        thread.name = thread.name.lower()  # because I'm picky
         thread.start()
     for thread in threads:
         thread.join()

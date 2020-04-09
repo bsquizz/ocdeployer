@@ -17,6 +17,7 @@ class EventWatcher(threading.Thread):
         config.load_kube_config()
         self._watcher = None
         self.namespace = namespace
+        self.name = "event_watcher"
         self.v1_client = client.CoreV1Api()
 
     def get_all_events(self, _events=None, _continue=None):
