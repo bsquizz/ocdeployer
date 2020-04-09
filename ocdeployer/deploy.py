@@ -572,13 +572,13 @@ class DeployRunner(object):
                 executor.submit(self._deploy_service_set, service_set): service_set
                 for service_set in service_sets_selected
             }
-        for future in concurrent.futures.as_completed(futures):
-            service_set = futures[future]
-            try:
-                all_processed_templates[service_set] = future.result()
-            except Exception as exc:
-                log.exception("Service set '%s' hit exception", service_set)
-            failed_sets.append(service_set)
+            for future in concurrent.futures.as_completed(futures):
+                service_set = futures[future]
+                try:
+                    all_processed_templates[service_set] = future.result()
+                except Exception as exc:
+                    log.exception("Service set '%s' hit exception", service_set)
+                failed_sets.append(service_set)
 
         if failed_sets:
             log.error("deploys failed for service set(s): %s", ", ".join(failed_sets))
@@ -633,16 +633,14 @@ class DeployRunner(object):
                     )
                     continue
                 service_sets_selected.append(service_set)
-
-            if not service_sets_selected:
-                raise ValueError("No service sets selected for deploy")
+                at_least_one_set_selected = True
 
             if self.concurrent:
                 all_processed_templates.update(
                     self._deploy_sets_concurrently(service_sets_selected)
                 )
             else:
-                for service_set in selected_service_sets:
+                for service_set in service_sets_selected:
                     all_processed_templates[service_set] = self._deploy_service_set(service_set)
 
         if self.dry_run:
