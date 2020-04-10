@@ -567,7 +567,7 @@ class DeployRunner(object):
 
         log.info("deploy service sets in this stage concurrently")
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
             futures = {
                 executor.submit(self._deploy_service_set, service_set): service_set
                 for service_set in service_sets_selected
