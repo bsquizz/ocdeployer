@@ -667,7 +667,7 @@ def get_input_image(buildconfig, trigger):
     bc = buildconfig
     input_image = None
 
-    if trigger["imageChange"] != {}:
+    if trigger.get("imageChange", {}) != {}:
         # the image used for trigger is explicitly defined, we're done
         input_image = trigger["imageChange"]["from"]["name"]
         return input_image
