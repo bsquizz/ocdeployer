@@ -716,7 +716,7 @@ def get_build_tree(buildconfigs):
 
         # look up input image
         for trigger in traverse_keys(bc, ["spec", "triggers"], []):
-            if trigger["type"].lower() == "imagechange":
+            if trigger.get("type", "").lower() == "imagechange":
                 input_image = get_input_image(bc, trigger)
                 if input_image not in bcs_using_input_image:
                     bcs_using_input_image[input_image] = []
