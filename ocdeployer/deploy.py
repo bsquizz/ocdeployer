@@ -303,7 +303,7 @@ def generate_dry_run_content(all_processed_templates, output="yaml", to_dir=None
                     with open(file_path, "w") as f:
                         f.write(text)
                 else:
-                    print("\n# {}/{}".format(service_set, template_name))
+                    print("---\n# {}/{}".format(service_set, template_name))
                     print(text)
 
 
