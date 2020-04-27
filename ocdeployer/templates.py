@@ -222,7 +222,15 @@ class Template(object):
             extra_args.extend(["-l", label])
 
         output = oc(
-            "process", "-f", "-", "-o", "json", *extra_args, _silent=True, _in=json.dumps(content)
+            "process",
+            "--local",
+            "-f",
+            "-",
+            "-o",
+            "json",
+            *extra_args,
+            _silent=True,
+            _in=json.dumps(content)
         )
 
         return json.loads(str(output))
