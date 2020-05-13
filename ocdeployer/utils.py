@@ -496,25 +496,22 @@ def _wait_with_periodic_status_check(timeout, key, restype, name):
     time_remaining = timeout
 
     def _ready():
-		nonlocal time_last_logged, time_remaining
+        nonlocal time_last_logged, time_remaining
 
-		j = get_json(restype, name)
-		if _check_status_for_restype(restype, j):
-			return True
+        j = get_json(restype, name)
+        if _check_status_for_restype(restype, j):
+            return True
 
-		if time.time() > time_last_logged + 60:
-			time_remaining -= 60
-			if time_remaining:
-				log.info("[%s] waiting %dsec longer", key, time_remaining)
-				time_last_logged = time.time()
-		return False
+        if time.time() > time_last_logged + 60:
+            time_remaining -= 60
+            if time_remaining:
+                log.info("[%s] waiting %dsec longer", key, time_remaining)
+                time_last_logged = time.time()
+        return False
 
-	wait_for(
-		_ready,
-		timeout=timeout,
-		delay=5,
-		message="wait for '{}' to be ready".format(key),
-	)
+    wait_for(
+        _ready, timeout=timeout, delay=5, message="wait for '{}' to be ready".format(key),
+    )
 
 
 def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=None):

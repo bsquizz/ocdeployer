@@ -567,7 +567,7 @@ class DeployRunner(object):
 
         log.info(
             "deploying service sets (%s) in this stage concurrently",
-            ", ".join(service_sets_selected)
+            ", ".join(service_sets_selected),
         )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
