@@ -81,7 +81,7 @@ def deploy_components(
         oc("apply", "-f", "-", "-n", project_name, _in=template.dump_processed_json())
 
         # Mark certain resources in this component as ones we need to wait on
-        for restype in ("dc", "sts"):
+        for restype in ("deployment", "deploymentconfig", "statefulset", "daemonset"):
             resources_to_wait_for.extend(
                 [(restype, name) for name in template.get_processed_names_for_restype(restype)]
             )
