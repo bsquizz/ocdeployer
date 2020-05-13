@@ -22,6 +22,8 @@ log = logging.getLogger(__name__)
 SHORTCUTS = {
     "build": None,
     "buildconfig": "bc",
+    "daemonset": "ds",
+    "deployment": "deploy",
     "deploymentconfig": "dc",
     "event": "ev",
     "imagestream": "is",
@@ -29,7 +31,7 @@ SHORTCUTS = {
     "imagestreamimage": "isimage",
     "job": None,
     "limitrange": "limits",
-    "node": None,
+    "node": "no",
     "pod": "po",
     "resourcequota": "quota",
     "replicationcontroller": "rc",
@@ -39,7 +41,8 @@ SHORTCUTS = {
     "statefulset": "sts",
     "persistentvolume": "pv",
     "persistentvolumeclaim": "pvc",
-    "configmap": None,
+    "configmap": "cm",
+    "replicaset": "rs",
     "route": None,
 }
 
