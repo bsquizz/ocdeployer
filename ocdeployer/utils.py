@@ -12,7 +12,7 @@ from functools import reduce
 
 from anytree import Node, RenderTree, PreOrderIter
 import sh
-from sh import ErrorReturnCode
+from sh import ErrorReturnCode, TimeoutException
 from wait_for import wait_for, TimedOutError
 
 log = logging.getLogger(__name__)
@@ -44,15 +44,15 @@ SHORTCUTS = {
 }
 
 
-def validate_list_of_strs(item_name, section, l):
+def validate_list_of_strs(item_name, section, list_):
     bad = False
 
     try:
-        iter(l)
+        iter(list_)
     except TypeError:
         bad = True
     else:
-        if not all([isinstance(i, str) for i in l]):
+        if not all([isinstance(i, str) for i in list_]):
             bad = True
 
     if bad:
@@ -206,6 +206,8 @@ def _exec_oc(*args, **kwargs):
     _silent = kwargs.pop("_silent", False)
     _ignore_immutable = kwargs.pop("_ignore_immutable", True)
     _retry_conflicts = kwargs.pop("_retry_conflicts", True)
+    _stdout_log_prefix = kwargs.pop("_stdout_log_prefix", " |stdout| ")
+    _stderr_log_prefix = kwargs.pop("_stderr_log_prefix", " |stderr| ")
 
     kwargs["_bg_exc"] = True
 
@@ -213,12 +215,12 @@ def _exec_oc(*args, **kwargs):
     out_lines = []
 
     def _err_line_handler(line):
-        log.info(" |stderr| %s", line.rstrip())
+        log.info("%s%s", _stderr_log_prefix, line.rstrip())
         err_lines.append(line)
 
     def _out_line_handler(line):
         if not _silent:
-            log.info(" |stdout| %s", line.rstrip())
+            log.info("%s%s", _stdout_log_prefix, line.rstrip())
         out_lines.append(line)
 
     retries = 3
@@ -270,6 +272,8 @@ def oc(*args, **kwargs):
         _silent: don't print command or resulting stdout (default False)
         _ignore_immutable: ignore errors related to immutable objects (default True)
         _retry_conflicts: retry commands if a conflict error is hit
+        _stdout_log_prefix: prefix this string to stdout log output (default " |stdout| ")
+        _stderr_log_prefix: prefix this string to stderr log output (default " |stderr| ")
 
     Returns:
         None if cmd fails and _exit_on_err is False
@@ -396,21 +400,7 @@ def _check_status_for_restype(restype, json_data):
 
     restype = parse_restype(restype)
 
-    if restype == "deploymentconfig":
-        spec_replicas = json_data["spec"]["replicas"]
-        available_replicas = status.get("availableReplicas", 0)
-        updated_replicas = status.get("updatedReplicas", 0)
-        unavailable_replicas = status.get("unavailableReplicas", 1)
-        if unavailable_replicas == 0:
-            if available_replicas == spec_replicas and updated_replicas == spec_replicas:
-                return True
-
-    elif restype == "statefulset":
-        spec_replicas = json_data["spec"]["replicas"]
-        ready_replicas = status.get("readyReplicas", 0)
-        return ready_replicas == spec_replicas
-
-    elif restype == "pod":
+    if restype == "pod":
         if status.get("phase") == "Running":
             return True
 
@@ -459,33 +449,41 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
     to store the result of this wait as:
         _result_dict[resource_name] = True or False
     """
-    key = "{}/{}".format(restype, name)
+    restype = parse_restype(restype)
+    key = "{}/{}".format(SHORTCUTS.get(restype) or restype, name)
 
     if _result_dict is None:
         _result_dict = dict()
     _result_dict[key] = False
 
-    log.info("Waiting up to %dsec for '%s' to complete", timeout, key)
-
-    def _complete():
-        j = get_json(restype, name)
-        if _check_status_for_restype(restype, j):
-            _result_dict[key] = True
-            log.info("'%s' is ready!", key)
-            return True
-        return False
+    log.info("[%s] waiting up to %dsec for resource to be ready", key, timeout)
 
     try:
-        wait_for(
-            _complete,
-            timeout=timeout,
-            delay=5,
-            message="wait for '{}' to complete".format(key),
-            log_on_loop=True,
-        )
+        if restype in ["deployment", "deploymentconfig", "statefulset", "daemonset"]:
+            # use oc rollout status for the applicable resource types
+            oc(
+                "rollout",
+                "status",
+                key,
+                _reraise=True,
+                _timeout=timeout,
+                _stdout_log_prefix=f"[{key}] ",
+                _stderr_log_prefix=f"[{key}]  ",
+            )
+        else:
+            wait_for(
+                lambda: _check_status_for_restype(restype, get_json(restype, name)) is True,
+                timeout=timeout,
+                delay=5,
+                message="wait for '{}' to complete".format(key),
+                log_on_loop=True,
+            )
+
+        log.info("[%s] is ready!", key)
+        _result_dict[key] = True
         return True
-    except (TimedOutError, StatusError):
-        log.exception("Hit error waiting on '%s'", key)
+    except (ErrorReturnCode, TimeoutException, TimedOutError, StatusError):
+        log.exception("[%s] hit error waiting for resource to be ready", key)
         if exit_on_err:
             sys.exit(1)
         return False

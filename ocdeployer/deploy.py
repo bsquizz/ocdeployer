@@ -213,7 +213,7 @@ def _get_custom_deploy_methods(service_set, service_set_dir, root_custom_dir):
         )
 
     if not module:
-        module = _load_module(os.path.join(root_custom_dir, f"deploy.py"), service_set)
+        module = _load_module(os.path.join(root_custom_dir, "deploy.py"), service_set)
 
     if not module:
         log.exception("Error loading custom deploy script, using default deploy methods")
