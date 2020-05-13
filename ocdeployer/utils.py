@@ -400,7 +400,21 @@ def _check_status_for_restype(restype, json_data):
 
     restype = parse_restype(restype)
 
-    if restype == "pod":
+    if restype == "deploymentconfig":
+        spec_replicas = json_data["spec"]["replicas"]
+        available_replicas = status.get("availableReplicas", 0)
+        updated_replicas = status.get("updatedReplicas", 0)
+        unavailable_replicas = status.get("unavailableReplicas", 1)
+        if unavailable_replicas == 0:
+            if available_replicas == spec_replicas and updated_replicas == spec_replicas:
+                return True
+
+    elif restype == "statefulset":
+        spec_replicas = json_data["spec"]["replicas"]
+        ready_replicas = status.get("readyReplicas", 0)
+        return ready_replicas == spec_replicas
+
+    elif restype == "pod":
         if status.get("phase") == "Running":
             return True
 
