@@ -403,7 +403,7 @@ def _check_status_for_restype(restype, json_data):
 
     restype = parse_restype(restype)
 
-    if restype == "deploymentconfig":
+    if restype == "deploymentconfig" or restype == "deployment":
         spec_replicas = json_data["spec"]["replicas"]
         available_replicas = status.get("availableReplicas", 0)
         updated_replicas = status.get("updatedReplicas", 0)
@@ -417,8 +417,13 @@ def _check_status_for_restype(restype, json_data):
         ready_replicas = status.get("readyReplicas", 0)
         return ready_replicas == spec_replicas
 
+    elif restype == "daemonset":
+        desired = status.get("desiredNumberScheduled", 1)
+        available = status.get("numberAvailable")
+        return desired == available
+
     elif restype == "pod":
-        if status.get("phase") == "Running":
+        if status.get("phase").lower() == "running":
             return True
 
     elif restype == "build":
@@ -476,7 +481,9 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
     log.info("[%s] waiting up to %dsec for resource to be ready", key, timeout)
 
     try:
-        if restype in ["deployment", "deploymentconfig", "statefulset", "daemonset"]:
+        # Do not use rollout status for statefulset/daemonset yet until we can handle
+        # https://github.com/kubernetes/kubernetes/issues/64500
+        if restype in ["deployment", "deploymentconfig"]:
             # use oc rollout status for the applicable resource types
             oc(
                 "rollout",
