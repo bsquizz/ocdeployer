@@ -8,6 +8,7 @@ import threading
 import time
 import os
 import yaml
+import re
 from functools import reduce
 
 from anytree import Node, RenderTree, PreOrderIter
@@ -45,6 +46,16 @@ SHORTCUTS = {
     "replicaset": "rs",
     "route": None,
 }
+
+
+INVALID_RESOURCE_REGEX = re.compile(
+    r'The (\S+) "(\S+)" is invalid: metadata.resourceVersion: Invalid value: 0x0'
+)
+
+
+def abort():
+    log.error("Hit fatal error!  Aborting.")
+    sys.exit(1)
 
 
 def validate_list_of_strs(item_name, section, list_):
@@ -148,10 +159,10 @@ def get_dir(value, default_value, dir_type, optional=False):
     path_exists_but_not_a_dir = os.path.exists(path) and not os.path.isdir(path)
     if required_dir_does_not_exist:
         log.error("%s directory missing: %s", dir_type, path)
-        sys.exit(1)
+        abort()
     if required_dir_is_not_a_dir or path_exists_but_not_a_dir:
         log.error("%s directory invalid: %s", dir_type, path)
-        sys.exit(1)
+        abort()
     path = os.path.abspath(path)
     if os.path.exists(path):
         log.info("Found %s path: %s", dir_type, path)
@@ -166,13 +177,13 @@ def all_sets(template_dir):
             cfg_data = load_cfg_file(f"{template_dir}/_cfg.yml")
         except ValueError as err:
             log.error("Error: template dir '%s' invalid: %s", template_dir, str(err))
-            sys.exit(1)
+            abort()
 
     try:
         stages = cfg_data["deploy_order"]
     except KeyError:
         log.error("Error: template dir '%s' invalid: _cfg file has no 'deploy_order'")
-        sys.exit(1)
+        abort()
 
     sets = reduce(lambda acc, s: acc + s.get("components", []), stages.values(), [])
 
@@ -292,11 +303,35 @@ def oc(*args, **kwargs):
         if _reraise:
             raise
         elif _exit_on_err:
-            log.error("Command failed!  Aborting.")
-            sys.exit(1)
+            abort()
         else:
             if not kwargs.get("_silent"):
                 log.warning("Non-zero return code ignored")
+
+
+def apply_template(project, template):
+    try:
+        oc("apply", "-f", "-", "-n", project, _in=template.dump_processed_json(), _reraise=True)
+    except ErrorReturnCode as err:
+        # Work-around for resourceVersion errors.
+        # See https://www.timcosta.io/kubernetes-service-invalid-clusterip-or-resourceversion/
+        matches = INVALID_RESOURCE_REGEX.findall(err.stderr)
+        if matches:
+            for restype, name in matches:
+                restype = restype.rstrip("s")  # remove plural language
+                if template.get_processed_item(restype, name):  # ensure we sent this item's config
+                    log.warning(
+                        "Removing last-applied-configuration annotation from %s/%s", restype, name
+                    )
+                    oc(
+                        "annotate",
+                        restype,
+                        name,
+                        "kubectl.kubernetes.io/last-applied-configuration-",
+                    )
+            oc("apply", "-f", "-", "-n", project, _in=template.dump_processed_json())
+        else:
+            abort()
 
 
 def switch_to_project(project):
@@ -509,7 +544,7 @@ def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=N
     except (ErrorReturnCode, TimeoutException, TimedOutError, StatusError):
         log.exception("[%s] hit error waiting for resource to be ready", key)
         if exit_on_err:
-            sys.exit(1)
+            abort()
         return False
 
 
@@ -541,7 +576,7 @@ def wait_for_ready_threaded(restype_name_list, timeout=300, exit_on_err=False):
     if failed:
         log.info("Some resources failed to become ready: %s", ", ".join(failed))
         if exit_on_err:
-            sys.exit(1)
+            abort()
         return False
     return True
 

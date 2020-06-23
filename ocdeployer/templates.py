@@ -309,3 +309,8 @@ class Template(object):
         it will not return the name of a pod embedded within a deployment config)
         """
         return [obj["metadata"]["name"] for obj in self.get_processed_items_for_restype(restype)]
+
+    def get_processed_item(self, restype, name):
+        for obj in self.get_processed_items_for_restype(restype):
+            if obj["metadata"]["name"] == name:
+                return obj

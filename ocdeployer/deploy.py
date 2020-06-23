@@ -11,7 +11,7 @@ import yaml
 
 from .config import merge_cfgs
 from .images import get_is_configs, import_images
-from .utils import load_cfg_file, oc, trigger_builds, wait_for_ready_threaded
+from .utils import apply_template, load_cfg_file, trigger_builds, wait_for_ready_threaded
 from .secrets import import_secrets, SecretImporter
 from .templates import Template, get_templates_in_dir
 
@@ -78,7 +78,7 @@ def deploy_components(
         processed_templates_by_name[comp_name] = template
 
         log.info("Deploying component '%s'", comp_name)
-        oc("apply", "-f", "-", "-n", project_name, _in=template.dump_processed_json())
+        apply_template(project_name, template)
 
         # Mark certain resources in this component as ones we need to wait on
         for restype in ("deployment", "deploymentconfig", "statefulset", "daemonset"):
