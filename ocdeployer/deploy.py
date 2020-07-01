@@ -325,6 +325,7 @@ class DeployRunner(object):
         dry_run=False,
         dry_run_opts=None,
         concurrent=False,
+        threadpool_size=os.cpu_count(),
     ):
         self.template_dir = template_dir
         self.root_custom_dir = root_custom_dir
@@ -342,6 +343,7 @@ class DeployRunner(object):
         self.env_config_handler = env_config_handler
         self._base_is_configs = {}
         self.concurrent = concurrent
+        self.threadpool_size = threadpool_size
 
     def _get_variables(self, service_set_name, service_set_dir, component):
         variables = {}
@@ -566,11 +568,12 @@ class DeployRunner(object):
         failed_sets = []
 
         log.info(
-            "deploying service sets (%s) in this stage concurrently",
+            "deploying service sets (%s) in this stage concurrently, threadpool size: %d",
             ", ".join(service_sets_selected),
+            self.threadpool_size,
         )
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.threadpool_size) as executor:
             futures = {
                 executor.submit(self._deploy_service_set, service_set): service_set
                 for service_set in service_sets_selected
@@ -579,7 +582,7 @@ class DeployRunner(object):
                 service_set = futures[future]
                 try:
                     all_processed_templates[service_set] = future.result()
-                except Exception as exc:
+                except Exception:
                     log.exception("Service set '%s' hit exception", service_set)
                     failed_sets.append(service_set)
 
@@ -636,7 +639,6 @@ class DeployRunner(object):
                     )
                     continue
                 service_sets_selected.append(service_set)
-                at_least_one_set_selected = True
 
             if self.concurrent:
                 all_processed_templates.update(
@@ -645,6 +647,11 @@ class DeployRunner(object):
             else:
                 for service_set in service_sets_selected:
                     all_processed_templates[service_set] = self._deploy_service_set(service_set)
+
+        total_components = sum([len(templates) for _, templates in all_processed_templates.items()])
+        log.info("Processed templates for %d total components", total_components)
+        if not total_components:
+            raise ValueError("The chosen combination of '-s' or '-p' did not match any components")
 
         if self.dry_run:
             generate_dry_run_content(all_processed_templates, **self.dry_run_opts)

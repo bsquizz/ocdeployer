@@ -109,7 +109,7 @@ def main():
     logging.basicConfig(
         level=logging.INFO,
         datefmt="%Y-%m-%d %H:%M:%S",
-        format="%(asctime)s %(levelname)8s [%(threadName)20s] %(message)s",
+        format="%(asctime)s %(levelname)8s [%(threadName)-15.15s] %(message)s",
     )
     logging.getLogger("sh").setLevel(logging.CRITICAL)
 
@@ -161,6 +161,13 @@ _common_options = [
         "-c",
         is_flag=True,
         help="Deploy service sets within a stage concurrently using thread pool",
+    ),
+    click.option(
+        "--threadpool-size",
+        "-z",
+        type=int,
+        default=os.cpu_count(),
+        help="Threadpool size when running concurrent deploys (default: os.cpu_count()",
     ),
 ]
 
@@ -278,6 +285,7 @@ def deploy_dry_run(
     to_dir,
     jinja_only,
     concurrent,
+    threadpool_size,
 ):
     template_dir, env_config_handler, specific_components, sets_selected, _ = _parse_args(
         template_dir, env_values, env_files, all_services, sets, pick, dst_project
@@ -299,6 +307,7 @@ def deploy_dry_run(
         dry_run=True,
         dry_run_opts={"output": output, "to_dir": to_dir, "jinja_only": jinja_only},
         concurrent=concurrent,
+        threadpool_size=threadpool_size,
     ).run()
 
 
@@ -352,6 +361,7 @@ def deploy_to_project(
     skip,
     watch,
     concurrent,
+    threadpool_size,
 ):
     root_custom_dir = get_dir(root_custom_dir, "custom", "custom scripts", optional=True)
 
@@ -392,6 +402,7 @@ def deploy_to_project(
         skip=skip.split(",") if skip else None,
         dry_run=False,
         concurrent=concurrent,
+        threadpool_size=threadpool_size,
     ).run()
 
     if watch and event_watcher:
