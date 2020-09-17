@@ -485,6 +485,11 @@ class DeployRunner(object):
         if self.env_config_handler:
             set_env_cfg = self.env_config_handler.get_service_set_env_cfg(dir_path, service_set)
         # Merge the values from the two _cfg definitions, with env settings taking precedence
+        from pprint import pprint
+        print("SET CFG")
+        pprint(set_cfg)
+        print("SET ENV CFG")
+        pprint(set_env_cfg)
         return merge_cfgs(set_cfg, set_env_cfg)
 
     def _deploy_service_set(self, service_set):

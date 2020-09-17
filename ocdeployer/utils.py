@@ -637,7 +637,7 @@ def no_pods_running(dc_name):
     """
     Return true if there are no pods running in the deployment
     """
-    return not all_pods_running(dc_name)
+    return not any_pods_running(dc_name)
 
 
 def stop_deployment(dc_name, timeout=180):
