@@ -21,6 +21,8 @@ log = logging.getLogger(__name__)
 # Resource types and their cli shortcuts
 # Mostly listed here: https://docs.openshift.com/online/cli_reference/basic_cli_operations.html
 SHORTCUTS = {
+    "configmap": "cm",
+    "cronjob": "cj",
     "build": None,
     "buildconfig": "bc",
     "daemonset": "ds",
@@ -42,7 +44,6 @@ SHORTCUTS = {
     "statefulset": "sts",
     "persistentvolume": "pv",
     "persistentvolumeclaim": "pvc",
-    "configmap": "cm",
     "replicaset": "rs",
     "route": None,
 }
@@ -252,9 +253,21 @@ def _exec_oc(*args, **kwargs):
         except ErrorReturnCode as err:
             # Sometimes stdout/stderr is empty in the exception even though we appended
             # data in the callback. Perhaps buffers are not being flushed ... so just
-            # set the out lines/err lines we captured on the Exception before re-raising it
+            # set the out lines/err lines we captured on the Exception before re-raising it by
+            # re-init'ing the err and causing it to rebuild its message template.
+            #
+            # see https://github.com/amoffat/sh/blob/master/sh.py#L381
+            err.__init__(
+                full_cmd=err.full_cmd,
+                stdout="\n".join(out_lines).encode(),
+                stderr="\n".join(err_lines).encode(),
+                truncate=err.truncate,
+            )
+
+            # Make these plain strings for easier exception handling
             err.stdout = "\n".join(out_lines)
             err.stderr = "\n".join(err_lines)
+
             last_err = err
 
             # Ignore warnings that are printed to stderr in our error analysis
@@ -512,6 +525,17 @@ def _wait_with_periodic_status_check(timeout, key, restype, name):
     wait_for(
         _ready, timeout=timeout, delay=5, message="wait for '{}' to be ready".format(key),
     )
+
+
+def wait_for_exists(restype, name, timeout=300):
+    restype = parse_restype(restype)
+    key = "{}/{}".format(SHORTCUTS.get(restype) or restype, name)
+    log.info("[%s] waiting up to %dsec for resource to exist", key, timeout)
+
+    def _exists():
+        return get_json(restype, name) is not {}
+
+    wait_for(_exists, timeout=timeout, delay=5, message="wait for '{}' to exist").format(key)
 
 
 def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=None):
