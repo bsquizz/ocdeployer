@@ -535,7 +535,7 @@ def wait_for_exists(restype, name, timeout=300):
     def _exists():
         return get_json(restype, name) is not {}
 
-    wait_for(_exists, timeout=timeout, delay=5, message="wait for '{}' to exist").format(key)
+    wait_for(_exists, timeout=timeout, delay=5, message="wait for '{}' to exist".format(key))
 
 
 def wait_for_ready(restype, name, timeout=300, exit_on_err=False, _result_dict=None):
