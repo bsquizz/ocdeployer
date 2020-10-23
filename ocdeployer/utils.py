@@ -533,7 +533,7 @@ def wait_for_exists(restype, name, timeout=300):
     log.info("[%s] waiting up to %dsec for resource to exist", key, timeout)
 
     def _exists():
-        return get_json(restype, name) is not {}
+        return bool(get_json(restype, name))
 
     wait_for(_exists, timeout=timeout, delay=5, message="wait for '{}' to exist".format(key))
 
