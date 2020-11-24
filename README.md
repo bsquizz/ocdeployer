@@ -259,31 +259,31 @@ In previous versions of `ocdeployer<4.0`, the `custom` dir was housed in the roo
  Inside this script you can define 3 methods:
 
 ```python
-def pre_deploy(project_name, template_dir, variables_for_component):
+def pre_deploy(project_name, template_dir, variables_per_component):
 ```
 * `project_name`: string, name of project being deployed to
 * `template_dir`: string, the full path to the directory of the service set's templates which are being deployed
-* `variables_for_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
+* `variables_per_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
 
 ```python
-def deploy(project_name, template_dir, components, variables_for_component, wait, timeout, resources_scale_factor, label):
+def deploy(project_name, template_dir, components, variables_per_component, wait, timeout, resources_scale_factor, label):
 ```
 * `project_name`: string, name of project being deployed to
 * `template_dir`: string, the full path to the directory of the service set's templates which are being deployed
 * `components`: list of strings, the component names from your service set that are being deployed
-* `variables_for_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
+* `variables_per_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
 * `wait`: boolean, used to determine whether the deploy logic should wait for things such as DeploymentConfig and BuildConfig to "finish" (go 'active', or build with success, respectively)
 * `timeout`: int, how long to wait for before timing out
 * `resources_scale_factor`: float, the value passed in to --scale-resources when running ocdeployer
 * `label`: string, the label attached to each object in Open Shift at deploy time
 
 ```python
-def post_deploy(processed_templates, project_name, template_dir, variables_for_component):
+def post_deploy(processed_templates, project_name, template_dir, variables_per_component):
 ```
 * `processed_templates`: dict with containing the processed template info for each component that was deployed -- keys: template name, vals: an instance of `ocdeployer.templates.Template` 
 * `project_name`: string, name of project being deployed to
 * `template_dir`: string, the full path to the directory of the service set's templates which are being deployed
-* `variables_for_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
+* `variables_per_component`: dict, keys are each component name in your service set, values are another dict consisting of the variables parsed from the `env.yml` file.
 
 Much of the code in `ocdeployer.common` may be useful to you as you write custom deploy logic (such as the `oc` method used to run oc commands).
 
