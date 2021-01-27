@@ -129,7 +129,9 @@ def _deploy_dry_run(
 
         else:
             template.process(
-                variables_per_component.get(comp_name, {}), resources_scale_factor, label,
+                variables_per_component.get(comp_name, {}),
+                resources_scale_factor,
+                label,
             )
 
         content_attr_name = "processed_content"
@@ -444,7 +446,8 @@ class DeployRunner(object):
 
         if not components_to_deploy:
             log.info(
-                "Skipping stage '%s', no selected components are part of this stage", stage,
+                "Skipping stage '%s', no selected components are part of this stage",
+                stage,
             )
             return {}
 

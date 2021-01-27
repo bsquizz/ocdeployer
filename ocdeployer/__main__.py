@@ -315,10 +315,14 @@ def deploy_dry_run(
 @common_options
 @click.option("--no-confirm", "-f", is_flag=True, help="Do not prompt for confirmation")
 @click.option(
-    "--secrets-local-dir", default=None, help="Import secrets from local files in a directory",
+    "--secrets-local-dir",
+    default=None,
+    help="Import secrets from local files in a directory",
 )
 @click.option(
-    "--secrets-src-project", default=None, help="Openshift project to import secrets from",
+    "--secrets-src-project",
+    default=None,
+    help="Openshift project to import secrets from",
 )
 @click.option(
     "--ignore-requires",

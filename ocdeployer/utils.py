@@ -523,7 +523,10 @@ def _wait_with_periodic_status_check(timeout, key, restype, name):
         return False
 
     wait_for(
-        _ready, timeout=timeout, delay=5, message="wait for '{}' to be ready".format(key),
+        _ready,
+        timeout=timeout,
+        delay=5,
+        message="wait for '{}' to be ready".format(key),
     )
 
 

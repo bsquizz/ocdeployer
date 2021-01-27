@@ -51,14 +51,14 @@ def import_secrets_from_dir(path):
 
 def import_secret_from_project(project, secret_name):
     log.info("Importing/replacing secret '%s' using secret from project '%s'", secret_name, project)
-    oc("delete", "--ignore-not-found", "secret", secret_name, _silent=True)
-    oc(
-        oc("get", "--export", "secret", secret_name, o="json", n=project, _silent=True),
-        "apply",
-        "-f",
-        "-",
-        _silent=True,
+    # get secret from source ns
+    secret_data = oc(
+        "get", "--export", "secret", "-n", project, secret_name, o="json", _silent=True
     )
+    # delete from dst ns
+    oc("delete", "--ignore-not-found", "secret", secret_name, _silent=True)
+    # apply copied secret
+    oc("apply", "-f", "-", _in=secret_data, _silent=True)
 
 
 def parse_config(config):

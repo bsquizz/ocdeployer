@@ -114,7 +114,11 @@ class ImageImporter:
     @classmethod
     def _retag_image(cls, istag, image_from, scheduled):
         oc(
-            "tag", f"--scheduled={scheduled}", "--source=docker", image_from, istag,
+            "tag",
+            f"--scheduled={scheduled}",
+            "--source=docker",
+            image_from,
+            istag,
         )
         oc("import-image", istag)
 
