@@ -50,7 +50,8 @@ def import_secrets_from_dir(path):
 
 
 def import_secret_from_project(project, secret_name):
-    log.info("Importing secret '%s' from project '%s'", secret_name, project)
+    log.info("Importing/replacing secret '%s' using secret from project '%s'", secret_name, project)
+    oc("delete", "--ignore-not-found", "secret", secret_name, _silent=True)
     oc(
         oc("get", "--export", "secret", secret_name, o="json", n=project, _silent=True),
         "apply",
@@ -108,7 +109,8 @@ class SecretImporter(object):
         if cls.local_secrets_data:
             for secret_name, secret_data in cls.local_secrets_data.items():
                 if secret_name == name:
-                    log.info("Importing secret '%s' from local storage", name)
+                    log.info("Importing/replacing secret '%s' from local storage", name)
+                    oc("delete", "--ignore-not-found", "secret", name, _silent=True)
                     oc("apply", "-f", "-", _silent=True, _in=json.dumps(secret_data))
                     cls.handled_secret_names.append(name)
 
