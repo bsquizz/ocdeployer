@@ -1,30 +1,23 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-import click
+import json
 import logging
 import os
-import json
-import sys
 import re
+import sys
 import threading
 
+import click
 import prompter
 import yaml
 
-from ocdeployer.utils import (
-    all_sets,
-    oc,
-    get_dir,
-    get_routes,
-    switch_to_project,
-    get_server_info,
-)
-from ocdeployer.secrets import SecretImporter
 from ocdeployer.deploy import DeployRunner
 from ocdeployer.env import EnvConfigHandler, LegacyEnvConfigHandler
 from ocdeployer.events import start_event_watcher
-
+from ocdeployer.secrets import SecretImporter
+from ocdeployer.utils import (all_sets, get_dir, get_routes, get_server_info,
+                              oc, switch_to_project)
 
 log = logging.getLogger("ocdeployer")
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -103,6 +96,7 @@ def verify_label(label):
     " ('oc') installed and to login to your openshift cluster before running the tool.",
     context_settings=CONTEXT_SETTINGS,
 )
+@click.version_option()
 def main():
     """Main ocdeployer group"""
     threading.current_thread().name = "main"
