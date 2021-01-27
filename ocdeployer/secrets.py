@@ -4,7 +4,7 @@ Handles secrets
 import json
 import logging
 
-from .utils import oc, get_cfg_files_in_dir, load_cfg_file, validate_list_of_strs
+from .utils import oc, get_cfg_files_in_dir, get_json, load_cfg_file, validate_list_of_strs
 
 
 log = logging.getLogger(__name__)
@@ -50,15 +50,33 @@ def import_secrets_from_dir(path):
 
 
 def import_secret_from_project(project, secret_name):
-    log.info("Importing/replacing secret '%s' using secret from project '%s'", secret_name, project)
+    log.info("Checking if secret '%s' needs import", secret_name)
+
+    # get existing secret in the ns (if it exists)
+    current_secret = get_json("secret", secret_name) or {}
     # get secret from source ns
-    secret_data = oc(
-        "get", "--export", "secret", "-n", project, secret_name, o="json", _silent=True
-    )
-    # delete from dst ns
-    oc("delete", "--ignore-not-found", "secret", secret_name, _silent=True)
-    # apply copied secret
-    oc("apply", "-f", "-", _in=secret_data, _silent=True)
+    output = oc("get", "--export", "secret", "-n", project, secret_name, o="json", _silent=True)
+    desired_secret = json.loads(str(output))
+    # avoid race conditions when running multiple 'ocdeployer' processes by comparing the data
+    if current_secret.get("data") != desired_secret.get("data"):
+        log.info("Replacing secret '%s' using secret from project '%s'", secret_name, project)
+        # delete from dst ns so that applying 'null' values will work
+        oc("delete", "--ignore-not-found", "secret", secret_name, _silent=True)
+        oc("apply", "-f", "-", _in=json.dumps(desired_secret), _silent=True)
+
+
+def import_secret_from_local_storage(secret_name, local_secret_data):
+    log.info("Checking if secret '%s' needs import", secret_name)
+
+    # get existing secret in the ns (if it exists)
+    current_secret = get_json("secret", secret_name) or {}
+
+    # avoid race conditions when running multiple 'ocdeployer' processes by comparing the data
+    if current_secret.get("data") != local_secret_data.get("data"):
+        log.info("Replacing secret '%s' using local storage", secret_name)
+        # delete from dst ns so that applying 'null' values will work
+        oc("delete", "--ignore-not-found", "secret", secret_name, _silent=True)
+        oc("apply", "-f", "-", _silent=True, _in=json.dumps(local_secret_data))
 
 
 def parse_config(config):
@@ -109,14 +127,11 @@ class SecretImporter(object):
         if cls.local_secrets_data:
             for secret_name, secret_data in cls.local_secrets_data.items():
                 if secret_name == name:
-                    log.info("Importing/replacing secret '%s' from local storage", name)
-                    oc("delete", "--ignore-not-found", "secret", name, _silent=True)
-                    oc("apply", "-f", "-", _silent=True, _in=json.dumps(secret_data))
+                    import_secret_from_local_storage(secret_name, secret_data)
                     cls.handled_secret_names.append(name)
 
         # Check if the directory import took care of it... if not, import from project...
         if cls.source_project and name not in cls.handled_secret_names:
-            log.info("Secret '%s' not yet imported, trying import from project...", name)
             import_secret_from_project(cls.source_project, name)
             cls.handled_secret_names.append(name)
 
