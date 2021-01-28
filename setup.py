@@ -32,6 +32,7 @@ setup(
         "pytz",
         "kubernetes",
         "anytree",
+        "ocviapy",
     ],
     classifiers=[
         "Topic :: Utilities",

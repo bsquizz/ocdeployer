@@ -4,6 +4,8 @@ Handles secrets
 import json
 import logging
 
+from ocviapy import export
+
 from .utils import oc, get_cfg_files_in_dir, get_json, load_cfg_file, validate_list_of_strs
 
 
@@ -55,8 +57,7 @@ def import_secret_from_project(project, secret_name):
     # get existing secret in the ns (if it exists)
     current_secret = get_json("secret", secret_name) or {}
     # get secret from source ns
-    output = oc("get", "--export", "secret", "-n", project, secret_name, o="json", _silent=True)
-    desired_secret = json.loads(str(output))
+    desired_secret = export("secret", secret_name, namespace=project)
     # avoid race conditions when running multiple 'ocdeployer' processes by comparing the data
     if current_secret.get("data") != desired_secret.get("data"):
         log.info("Replacing secret '%s' using secret from project '%s'", secret_name, project)
