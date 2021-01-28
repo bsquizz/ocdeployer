@@ -7,4 +7,5 @@ wait_for
 jinja2
 cached_property
 anytree
+ocviapy==0.3.2
 -e .
