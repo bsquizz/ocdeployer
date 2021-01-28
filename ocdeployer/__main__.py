@@ -16,8 +16,7 @@ from ocdeployer.deploy import DeployRunner
 from ocdeployer.env import EnvConfigHandler, LegacyEnvConfigHandler
 from ocdeployer.events import start_event_watcher
 from ocdeployer.secrets import SecretImporter
-from ocdeployer.utils import (all_sets, get_dir, get_routes, get_server_info,
-                              oc, switch_to_project)
+from ocdeployer.utils import all_sets, get_dir, get_routes, get_server_info, oc, switch_to_project
 
 log = logging.getLogger("ocdeployer")
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])

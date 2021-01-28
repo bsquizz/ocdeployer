@@ -58,6 +58,8 @@ def import_secret_from_project(project, secret_name):
     current_secret = get_json("secret", secret_name) or {}
     # get secret from source ns
     desired_secret = export("secret", secret_name, namespace=project)
+    if not desired_secret:
+        raise ValueError(f"secret {secret_name} not found in namespace '{project}'")
     # avoid race conditions when running multiple 'ocdeployer' processes by comparing the data
     if current_secret.get("data") != desired_secret.get("data"):
         log.info("Replacing secret '%s' using secret from project '%s'", secret_name, project)
