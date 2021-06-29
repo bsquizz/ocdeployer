@@ -1,9 +1,11 @@
 import logging
+import threading
 
 from .utils import oc, get_json, validate_list_of_strs
 
 
 log = logging.getLogger("ocdeployer.images")
+lock = threading.Lock()
 
 
 # Template of an ImageStream config that 'oc import-image' will create
@@ -165,7 +167,8 @@ def _get_args(config, env_names):
 def import_images(config, env_names):
     """Import the specified images listed in a _cfg.yml"""
     for args in _get_args(config, env_names):
-        ImageImporter.do_import(*args)
+        with lock:
+            ImageImporter.do_import(*args)
 
 
 def get_is_configs(config, env_names):
