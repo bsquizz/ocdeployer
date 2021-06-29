@@ -585,7 +585,7 @@ class DeployRunner(object):
                 service_set = futures[future]
                 try:
                     all_processed_templates[service_set] = future.result()
-                except Exception:
+                except (Exception, SystemExit):
                     log.exception("Service set '%s' hit exception", service_set)
                     failed_sets.append(service_set)
 

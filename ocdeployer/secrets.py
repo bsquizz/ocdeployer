@@ -3,6 +3,7 @@ Handles secrets
 """
 import json
 import logging
+import threading
 
 from ocviapy import export
 
@@ -10,6 +11,7 @@ from .utils import oc, get_cfg_files_in_dir, get_json, load_cfg_file, validate_l
 
 
 log = logging.getLogger(__name__)
+lock = threading.Lock()
 
 
 def parse_secret_file(path):
@@ -167,7 +169,8 @@ def import_secrets(config, env_names):
     secrets = parse_config(config)
     for secret in secrets:
         if not secret["envs"] or any([e in env_names for e in secret["envs"]]):
-            SecretImporter.handle(**secret)
+            with lock:
+                SecretImporter.handle(**secret)
         else:
             log.info(
                 "Skipping check/import of secret '%s', not enabled for this env", secret["name"]
